@@ -46,9 +46,8 @@ class CornellDiningApp {
         document.addEventListener('click', (e) => {
             const dropdown = document.getElementById('profileDropdown');
             const profileBtn = document.getElementById('profileBtn');
-            const nameInput = document.getElementById('nameInput');
             
-            // Don't close if clicking on the dropdown itself, profile button, or name input
+            // Don't close if clicking on the dropdown content or profile button
             if (!dropdown.contains(e.target) && !profileBtn.contains(e.target)) {
                 dropdown.classList.add('hidden');
             }
@@ -122,9 +121,14 @@ class CornellDiningApp {
                 this.user = data.user;
                 this.updateUIForSignedInUser();
                 await this.loadUserHearts();
+            } else {
+                // Explicitly set UI for signed out state
+                this.updateUIForSignedOutUser();
             }
         } catch (error) {
             console.error('Error checking auth:', error);
+            // If there's an error, assume signed out
+            this.updateUIForSignedOutUser();
         }
     }
 
