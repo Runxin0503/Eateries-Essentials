@@ -7,7 +7,6 @@ class CornellDiningApp {
         this.deviceId = this.getOrCreateDeviceId();
         this.startX = null;
         this.startY = null;
-        this.isFlipping = false;
 
         this.init();
     }
@@ -414,46 +413,24 @@ class CornellDiningApp {
                     <img src="${isHallLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image">
                 </div>
             </div>
-            <div class="flashcard-back">
+            <div class="menu-layer hidden">
                 ${this.createMenuContent(hall)}
             </div>
         `;
 
-        // Handle clicks with proper single/double tap detection
-        let clickCount = 0;
-        let clickTimer = null;
-        
+        // Add click handler for simple layer toggle
         card.addEventListener('click', (e) => {
-            console.log('[Frontend] Card clicked, clickCount:', clickCount);
-            clickCount++;
-            
-            if (clickCount === 1) {
-                clickTimer = setTimeout(() => {
-                    // Single click - flip card
-                    console.log('[Frontend] Processing single click - attempting to flip card');
-                    if (!this.isFlipping) {
-                        console.log('[Frontend] Card not currently flipping, calling flipCard');
-                        this.flipCard(card);
-                    } else {
-                        console.log('[Frontend] Card is currently flipping, skipping flip');
-                    }
-                    clickCount = 0;
-                }, 250);
-            } else if (clickCount === 2) {
-                // Double click - handle heart
-                console.log('[Frontend] Processing double click - handling heart');
-                clearTimeout(clickTimer);
-                clickCount = 0;
-                e.preventDefault();
-                e.stopPropagation();
-                this.handleDoubleTab(e, card, hall);
-            }
+            console.log('[Frontend] Card clicked, toggling menu layer');
+            e.stopPropagation();
+            this.toggleMenuLayer(card);
         });
 
         return card;
     }
 
     createMenuContent(hall) {
+        console.log('[Frontend] Creating menu content for:', hall.name);
+        
         if (!hall.menus || Object.keys(hall.menus).length === 0) {
             return `
                 <div class="menu-content">
@@ -478,7 +455,7 @@ class CornellDiningApp {
 
             categories.forEach(category => {
                 if (category.items && category.items.length > 0) {
-                    menuHTML += `<h5 style="font-weight: 500; color: #555; margin: 0.5rem 0;">${category.category}</h5>`;
+                    menuHTML += `<h5 class="category-title">${category.category}</h5>`;
                     category.items.forEach(item => {
                         const isItemLiked = this.user && this.userHearts.menuItems.includes(item.id);
                         menuHTML += `
@@ -500,22 +477,18 @@ class CornellDiningApp {
         return menuHTML;
     }
 
-    flipCard(card) {
-        console.log('[Frontend] Starting card flip animation');
-        this.isFlipping = true;
+    toggleMenuLayer(card) {
+        const menuLayer = card.querySelector('.menu-layer');
+        const frontLayer = card.querySelector('.flashcard-front');
         
-        const isCurrentlyFlipped = card.classList.contains('flipped');
-        console.log(`[Frontend] Card is currently ${isCurrentlyFlipped ? 'flipped (showing back)' : 'unflipped (showing front)'}`);
-        
-        card.classList.toggle('flipped');
-        
-        const newState = card.classList.contains('flipped') ? 'back (menu)' : 'front (info)';
-        console.log(`[Frontend] Card flipped to show ${newState}`);
-        
-        // Add event listeners for menu items after flip
-        setTimeout(() => {
-            const menuItems = card.querySelectorAll('.menu-item');
-            console.log(`[Frontend] Adding event listeners to ${menuItems.length} menu items`);
+        if (menuLayer.classList.contains('hidden')) {
+            // Show menu layer
+            console.log('[Frontend] Showing menu layer');
+            menuLayer.classList.remove('hidden');
+            frontLayer.classList.add('hidden');
+            
+            // Add event listeners to menu items
+            const menuItems = menuLayer.querySelectorAll('.menu-item');
             menuItems.forEach(item => {
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -523,15 +496,11 @@ class CornellDiningApp {
                     this.handleMenuItemHeart(e, item);
                 });
             });
-            this.isFlipping = false;
-            console.log('[Frontend] Card flip animation complete');
-        }, 300);
-    }
-
-    flipCurrentCard() {
-        const currentCard = document.querySelector(`.flashcard[data-index="${this.currentCardIndex}"]`);
-        if (currentCard) {
-            this.flipCard(currentCard);
+        } else {
+            // Hide menu layer
+            console.log('[Frontend] Hiding menu layer');
+            menuLayer.classList.add('hidden');
+            frontLayer.classList.remove('hidden');
         }
     }
 
@@ -543,11 +512,8 @@ class CornellDiningApp {
             return;
         }
 
-        const isFlipped = card.classList.contains('flipped');
-        if (!isFlipped) {
-            // Heart the dining hall
-            await this.toggleDiningHallHeart(hall.id, card);
-        }
+        // Heart the dining hall
+        await this.toggleDiningHallHeart(hall.id, card);
     }
 
     async handleMenuItemHeart(e, menuItem) {
@@ -695,6 +661,7 @@ class CornellDiningApp {
     }
 
     handleMouseDown(e) {
+        console.log('[Frontend] Mouse down event - target:', e.target.tagName, e.target.className);
         // Only handle left click on container or its children
         if (e.button !== 0) return;
         
@@ -702,6 +669,7 @@ class CornellDiningApp {
         const container = document.querySelector('.flashcard-container');
         if (!container || (!container.contains(e.target) && e.target !== container)) return;
         
+        console.log('[Frontend] Mouse down on container area');
         this.isMouseDown = true;
         this.startX = e.clientX;
         this.startY = e.clientY;
@@ -718,6 +686,7 @@ class CornellDiningApp {
     }
 
     handleMouseUp(e) {
+        console.log('[Frontend] Mouse up event - target:', e.target.tagName, e.target.className);
         if (!this.isMouseDown) return;
         
         this.isMouseDown = false;
