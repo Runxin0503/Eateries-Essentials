@@ -286,18 +286,14 @@ class CornellDiningApp {
                 start = new Date(period.start);
                 end = new Date(period.end);
             } else {
-                // Fallback - try to get day from current date or period data
-                const today = new Date();
-                const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
-                return `${dayOfWeek}: ${period.summary || 'Open'}`;
+                // Fallback - just show the summary without day if no date info
+                return `${period.summary || 'Open'}`;
             }
             
             // Check if dates are valid
             if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-                // Try to get day from today if dates are invalid
-                const today = new Date();
-                const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
-                return `${dayOfWeek}: ${period.summary || 'Open'}`;
+                // If dates are invalid, just show summary without day
+                return `${period.summary || 'Open'}`;
             }
             
             // Get day of the week from the actual date
@@ -711,14 +707,22 @@ class CornellDiningApp {
         const deltaY = this.currentY - this.startY;
         const deltaTime = endTime - this.startTime;
         
-        // Check for swipe gesture vs click
+        // Check if we clicked on a flashcard - if so, let the card handle the click
+        if (e.target.closest('.flashcard')) {
+            console.log('[Frontend] Click detected on flashcard, letting card handle the event');
+            return; // Don't interfere with card's own click handling
+        }
+        
+        // Check for swipe gesture vs click on container background
         if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) && deltaTime < 500) {
+            console.log('[Frontend] Swipe detected on container background');
             if (deltaX > 0) {
                 this.previousCard();
             } else {
                 this.nextCard();
             }
         } else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
+            console.log('[Frontend] Click detected on container background, flipping current card');
             this.flipCurrentCard();
         }
         
