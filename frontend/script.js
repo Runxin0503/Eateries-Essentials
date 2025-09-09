@@ -282,16 +282,21 @@ class CornellDiningApp {
                 start = new Date(period.start);
                 end = new Date(period.end);
             } else {
-                // Fallback
-                return `${period.summary || 'Open'}`;
+                // Fallback - try to get day from current date or period data
+                const today = new Date();
+                const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+                return `${dayOfWeek}: ${period.summary || 'Open'}`;
             }
             
             // Check if dates are valid
             if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-                return `${period.summary || 'Open'}`;
+                // Try to get day from today if dates are invalid
+                const today = new Date();
+                const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+                return `${dayOfWeek}: ${period.summary || 'Open'}`;
             }
             
-            // Get day of the week
+            // Get day of the week from the actual date
             const dayOfWeek = start.toLocaleDateString('en-US', { weekday: 'long' });
             const startTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const endTime = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
