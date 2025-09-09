@@ -293,8 +293,6 @@ body {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    font-size: 1.5rem;
-    color: #ff6b6b;
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
@@ -306,6 +304,17 @@ body {
 
 .heart-icon.animate {
     animation: heartPop 0.6s ease;
+}
+
+.heart-image {
+    width: 32px;
+    height: 32px;
+    filter: opacity(0.8);
+    transition: filter 0.3s ease;
+}
+
+.heart-icon.liked .heart-image {
+    filter: opacity(1);
 }
 
 @keyframes heartPop {
@@ -365,17 +374,26 @@ body {
 }
 
 .menu-item-heart {
-    font-size: 1.25rem;
-    color: #ddd;
-    transition: color 0.3s ease;
+    transition: opacity 0.3s ease;
 }
 
 .menu-item-heart.liked {
-    color: #ff6b6b;
+    opacity: 1;
 }
 
 .menu-item-heart.animate {
     animation: heartPop 0.4s ease;
+}
+
+.heart-image-small {
+    width: 20px;
+    height: 20px;
+    filter: opacity(0.4);
+    transition: filter 0.3s ease;
+}
+
+.menu-item-heart.liked .heart-image-small {
+    filter: opacity(1);
 }
 
 /* Navigation */

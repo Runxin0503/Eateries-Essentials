@@ -43,8 +43,15 @@ class CornellDiningApp {
         });
 
         // Close dropdown when clicking outside
-        document.addEventListener('click', () => {
-            document.getElementById('profileDropdown').classList.add('hidden');
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('profileDropdown');
+            const profileBtn = document.getElementById('profileBtn');
+            const nameInput = document.getElementById('nameInput');
+            
+            // Don't close if clicking on the dropdown itself, profile button, or name input
+            if (!dropdown.contains(e.target) && !profileBtn.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
         });
 
         // Sign in
@@ -172,6 +179,7 @@ class CornellDiningApp {
     }
 
     updateUIForSignedInUser() {
+        console.log('[Frontend] Updating UI for signed in user:', this.user.name);
         document.getElementById('profileName').textContent = this.user.name;
         document.getElementById('signInForm').classList.add('hidden');
         document.getElementById('userInfo').classList.remove('hidden');
@@ -179,9 +187,12 @@ class CornellDiningApp {
     }
 
     updateUIForSignedOutUser() {
+        console.log('[Frontend] Updating UI for signed out state');
         document.getElementById('profileName').textContent = 'Sign In';
         document.getElementById('signInForm').classList.remove('hidden');
         document.getElementById('userInfo').classList.add('hidden');
+        // Clear the name input when signing out
+        document.getElementById('nameInput').value = '';
     }
 
     async loadUserHearts() {
@@ -280,9 +291,12 @@ class CornellDiningApp {
                 return `${period.summary || 'Open'}`;
             }
             
+            // Get day of the week
+            const dayOfWeek = start.toLocaleDateString('en-US', { weekday: 'long' });
             const startTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const endTime = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            return `${period.summary || 'Open'}: ${startTime} - ${endTime}`;
+            
+            return `${dayOfWeek}: ${period.summary || 'Open'} ${startTime} - ${endTime}`;
         }).join(' | ');
     }
 
@@ -372,7 +386,9 @@ class CornellDiningApp {
                     <p class="dining-hall-hours">${hall.hours}</p>
                     <p class="dining-hall-description">${hall.description}</p>
                 </div>
-                <div class="heart-icon ${isHallLiked ? 'liked' : ''}">❤️</div>
+                <div class="heart-icon ${isHallLiked ? 'liked' : ''}">
+                    <img src="${isHallLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image">
+                </div>
             </div>
             <div class="flashcard-back">
                 ${this.createMenuContent(hall)}
@@ -438,7 +454,9 @@ class CornellDiningApp {
                         menuHTML += `
                             <div class="menu-item" data-item-id="${item.id}">
                                 <span class="menu-item-name">${item.name}</span>
-                                <span class="menu-item-heart ${isItemLiked ? 'liked' : ''}">❤️</span>
+                                <span class="menu-item-heart ${isItemLiked ? 'liked' : ''}">
+                                    <img src="${isItemLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image-small">
+                                </span>
                             </div>
                         `;
                     });
@@ -453,19 +471,30 @@ class CornellDiningApp {
     }
 
     flipCard(card) {
+        console.log('[Frontend] Starting card flip animation');
         this.isFlipping = true;
+        
+        const isCurrentlyFlipped = card.classList.contains('flipped');
+        console.log(`[Frontend] Card is currently ${isCurrentlyFlipped ? 'flipped (showing back)' : 'unflipped (showing front)'}`);
+        
         card.classList.toggle('flipped');
+        
+        const newState = card.classList.contains('flipped') ? 'back (menu)' : 'front (info)';
+        console.log(`[Frontend] Card flipped to show ${newState}`);
         
         // Add event listeners for menu items after flip
         setTimeout(() => {
             const menuItems = card.querySelectorAll('.menu-item');
+            console.log(`[Frontend] Adding event listeners to ${menuItems.length} menu items`);
             menuItems.forEach(item => {
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    console.log('[Frontend] Menu item clicked:', item.textContent);
                     this.handleMenuItemHeart(e, item);
                 });
             });
             this.isFlipping = false;
+            console.log('[Frontend] Card flip animation complete');
         }, 300);
     }
 
@@ -501,7 +530,10 @@ class CornellDiningApp {
 
         const itemId = menuItem.dataset.itemId;
         const heartIcon = menuItem.querySelector('.menu-item-heart');
+        const heartImage = heartIcon.querySelector('.heart-image-small');
         const isLiked = heartIcon.classList.contains('liked');
+
+        console.log(`[Frontend] Toggling menu item heart for item ${itemId}, currently ${isLiked ? 'liked' : 'not liked'}`);
 
         try {
             const response = await fetch('/api/hearts/menu-item', {
@@ -520,6 +552,11 @@ class CornellDiningApp {
             if (result.success) {
                 heartIcon.classList.toggle('liked');
                 heartIcon.classList.add('animate');
+                
+                // Update the heart image source
+                heartImage.src = result.isLiked ? 'heart.png' : 'heart-transparent.png';
+                console.log(`[Frontend] Menu item heart image updated to: ${heartImage.src}`);
+                
                 setTimeout(() => heartIcon.classList.remove('animate'), 600);
 
                 // Update local state
@@ -528,6 +565,8 @@ class CornellDiningApp {
                 } else {
                     this.userHearts.menuItems = this.userHearts.menuItems.filter(id => id !== itemId);
                 }
+                
+                console.log(`[Frontend] Menu item heart ${result.isLiked ? 'added' : 'removed'}`);
             }
         } catch (error) {
             console.error('Error toggling menu item heart:', error);
@@ -536,7 +575,10 @@ class CornellDiningApp {
 
     async toggleDiningHallHeart(hallId, card) {
         const heartIcon = card.querySelector('.heart-icon');
+        const heartImage = heartIcon.querySelector('.heart-image');
         const isLiked = heartIcon.classList.contains('liked');
+
+        console.log(`[Frontend] Toggling dining hall heart for hall ${hallId}, currently ${isLiked ? 'liked' : 'not liked'}`);
 
         try {
             const response = await fetch('/api/hearts/dining-hall', {
@@ -555,6 +597,11 @@ class CornellDiningApp {
             if (result.success) {
                 heartIcon.classList.toggle('liked');
                 heartIcon.classList.add('animate');
+                
+                // Update the heart image source
+                heartImage.src = result.isLiked ? 'heart.png' : 'heart-transparent.png';
+                console.log(`[Frontend] Heart image updated to: ${heartImage.src}`);
+                
                 setTimeout(() => heartIcon.classList.remove('animate'), 600);
 
                 // Update local state
@@ -563,6 +610,8 @@ class CornellDiningApp {
                 } else {
                     this.userHearts.diningHalls = this.userHearts.diningHalls.filter(id => id !== hallId);
                 }
+                
+                console.log(`[Frontend] Dining hall heart ${result.isLiked ? 'added' : 'removed'}`);
             }
         } catch (error) {
             console.error('Error toggling dining hall heart:', error);
