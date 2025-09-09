@@ -405,18 +405,24 @@ class CornellDiningApp {
         let clickTimer = null;
         
         card.addEventListener('click', (e) => {
+            console.log('[Frontend] Card clicked, clickCount:', clickCount);
             clickCount++;
             
             if (clickCount === 1) {
                 clickTimer = setTimeout(() => {
                     // Single click - flip card
+                    console.log('[Frontend] Processing single click - attempting to flip card');
                     if (!this.isFlipping) {
+                        console.log('[Frontend] Card not currently flipping, calling flipCard');
                         this.flipCard(card);
+                    } else {
+                        console.log('[Frontend] Card is currently flipping, skipping flip');
                     }
                     clickCount = 0;
                 }, 250);
             } else if (clickCount === 2) {
                 // Double click - handle heart
+                console.log('[Frontend] Processing double click - handling heart');
                 clearTimeout(clickTimer);
                 clickCount = 0;
                 e.preventDefault();
