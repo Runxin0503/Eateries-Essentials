@@ -203,126 +203,199 @@ body {
 /* Main Content */
 .main-content {
     flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
 }
 
-.flashcard-container {
-    position: relative;
+.dining-halls-container {
     width: 100%;
-    max-width: 400px;
-    height: 600px;
 }
 
-.flashcard-stack {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    perspective: 1000px;
-    -webkit-perspective: 1000px;
+.dining-halls-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
 }
 
-.flashcard {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 20px;
+.dining-hall-card {
     background: white;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    transition: all 0.3s ease;
     cursor: pointer;
-    overflow: hidden;
-    left: 0;
-    top: 0;
+    border: 2px solid transparent;
 }
 
-.flashcard-front {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 20px;
-    overflow: hidden;
-    background: white;
+.dining-hall-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
 }
 
-.menu-layer {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 20px;
-    overflow: hidden;
+.dining-hall-card.expanded {
+    border-color: #667eea;
     background: #f8f9fa;
-    transition: opacity 0.3s ease;
 }
 
-.menu-layer.hidden {
-    opacity: 0;
-    pointer-events: none;
+.dining-hall-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.dining-hall-info {
+    flex: 1;
+}
+
+.dining-hall-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.dining-hall-status {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.dining-hall-status.open {
+    background: #d4edda;
+    color: #155724;
+}
+
+.dining-hall-status.closed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.dining-hall-hours {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.dining-hall-description {
+    color: #777;
+    line-height: 1.4;
+    font-size: 0.9rem;
+}
+
+.heart-icon {
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.heart-icon:hover {
+    transform: scale(1.1);
+}
+
+.heart-icon.liked {
+    animation: heartPop 0.4s ease;
+}
+
+.heart-image {
+    width: 100%;
+    height: 100%;
+    filter: opacity(0.6);
+}
+
+.heart-icon.liked .heart-image {
+    filter: opacity(1);
 }
 
 .hidden {
     display: none;
 }
 
-.dining-hall-image {
-    width: 100%;
-    height: 250px;
-    object-fit: cover;
-    background: linear-gradient(45deg, #f0f0f0, #e0e0e0);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #999;
-    font-size: 3rem;
+/* Menu Display in Expanded Cards */
+.menu-content {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 2px solid #e9ecef;
 }
 
-.dining-hall-info {
-    padding: 1.5rem;
-}
-
-.dining-hall-name {
-    font-size: 1.5rem;
+.menu-title {
+    font-size: 1.1rem;
     font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: #333;
-}
-
-.dining-hall-hours {
-    color: #666;
     margin-bottom: 1rem;
+    color: #333;
+    text-align: center;
 }
 
-.dining-hall-description {
-    color: #777;
-    line-height: 1.5;
+.meal-section {
+    margin-bottom: 1.5rem;
 }
 
-.heart-icon {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    opacity: 0;
+.meal-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #667eea;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid #667eea;
+}
+
+.category-title {
+    font-weight: 500;
+    color: #555;
+    margin: 0.75rem 0 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.25rem;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.menu-item:hover {
+    background: #f8f9fa;
+    border-color: #667eea;
+}
+
+.menu-item-name {
+    flex: 1;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.menu-item-heart {
     transition: opacity 0.3s ease;
-    pointer-events: none;
 }
 
-.heart-icon.liked {
+.menu-item-heart.liked {
     opacity: 1;
 }
 
-.heart-icon.animate {
-    animation: heartPop 0.6s ease;
+.menu-item-heart.animate {
+    animation: heartPop 0.4s ease;
 }
 
-.heart-image {
-    width: 32px;
-    height: 32px;
-    filter: opacity(0.8);
-    transition: filter 0.3s ease;
+.heart-image-small {
+    width: 18px;
+    height: 18px;
+    filter: opacity(0.4);
+    cursor: pointer;
 }
 
-.heart-icon.liked .heart-image {
+.menu-item-heart.liked .heart-image-small {
     filter: opacity(1);
 }
 
@@ -412,28 +485,6 @@ body {
     filter: opacity(1);
 }
 
-/* Navigation */
-.navigation-dots {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
-}
-
-.nav-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.5);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.nav-dot.active {
-    background: white;
-    transform: scale(1.2);
-}
-
 /* Instructions */
 .instructions {
     text-align: center;
@@ -475,42 +526,11 @@ body {
 
 /* Touch-friendly interactions */
 @media (hover: none) {
-    .flashcard:active {
+    .dining-hall-card:active {
         transform: scale(0.98);
     }
     
     .menu-item:active {
         background: #dee2e6;
-    }
-}
-
-/* Animations */
-.flashcard-enter {
-    animation: slideInRight 0.5s ease;
-}
-
-.flashcard-exit {
-    animation: slideOutLeft 0.5s ease;
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideOutLeft {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(-100%);
-        opacity: 0;
     }
 }

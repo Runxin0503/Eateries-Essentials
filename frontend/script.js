@@ -7,6 +7,7 @@ class CornellDiningApp {
         this.deviceId = this.getOrCreateDeviceId();
         this.startX = null;
         this.startY = null;
+        this.isFlipping = false;
 
         this.init();
     }
@@ -272,42 +273,27 @@ class CornellDiningApp {
             return 'Hours not available';
         }
 
-        const allEvents = [];
-        operatingHours.forEach(daySchedule => {
-            if (daySchedule.events && Array.isArray(daySchedule.events)) {
-                allEvents.push(...daySchedule.events);
-            }
-        });
-
-        if (allEvents.length === 0) {
-            return 'Hours not available';
-        }
-
-        return allEvents.map(event => {
+        return operatingHours.map(period => {
             // Handle different timestamp formats
             let start, end;
             
-            if (event.startTimestamp && event.endTimestamp) {
+            if (period.startTimestamp && period.endTimestamp) {
                 // Unix timestamp (seconds)
-                start = new Date(event.startTimestamp * 1000);
-                end = new Date(event.endTimestamp * 1000);
-            } else if (event.start && event.end) {
-                // ISO string format or time strings
-                if (typeof event.start === 'string' && typeof event.end === 'string') {
-                    // Just return the time strings as provided
-                    return `${event.descr || event.calSummary || 'Open'}: ${event.start} - ${event.end}`;
-                }
-                start = new Date(event.start);
-                end = new Date(event.end);
+                start = new Date(period.startTimestamp * 1000);
+                end = new Date(period.endTimestamp * 1000);
+            } else if (period.start && period.end) {
+                // ISO string format
+                start = new Date(period.start);
+                end = new Date(period.end);
             } else {
-                // Fallback - just show the description
-                return `${event.descr || event.calSummary || 'Open'}`;
+                // Fallback - just show the summary without day if no date info
+                return `${period.summary || 'Open'}`;
             }
             
             // Check if dates are valid
             if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-                // If dates are invalid, just show description
-                return `${event.descr || event.calSummary || 'Open'}`;
+                // If dates are invalid, just show summary without day
+                return `${period.summary || 'Open'}`;
             }
             
             // Get day of the week from the actual date
@@ -315,7 +301,7 @@ class CornellDiningApp {
             const startTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const endTime = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
-            return `${dayOfWeek}: ${event.descr || event.calSummary || 'Open'} ${startTime} - ${endTime}`;
+            return `${dayOfWeek}: ${period.summary || 'Open'} ${startTime} - ${endTime}`;
         }).join(' | ');
     }
 
@@ -326,21 +312,17 @@ class CornellDiningApp {
             return menus;
         }
         
-        operatingHours.forEach(daySchedule => {
-            if (daySchedule.events && Array.isArray(daySchedule.events)) {
-                daySchedule.events.forEach(event => {
-                    if (event.menu && Array.isArray(event.menu) && event.menu.length > 0) {
-                        const mealType = (event.descr || event.calSummary || 'meal').toLowerCase();
-                        menus[mealType] = event.menu.map(category => ({
-                            category: category.category || 'Unknown',
-                            items: (category.items || []).map(item => ({
-                                id: `${event.descr || event.calSummary || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
-                                name: item.item || 'Unknown Item',
-                                healthy: item.healthy || false
-                            }))
-                        }));
-                    }
-                });
+        operatingHours.forEach(period => {
+            if (period.menu && Array.isArray(period.menu) && period.menu.length > 0) {
+                const mealType = (period.summary || 'meal').toLowerCase();
+                menus[mealType] = period.menu.map(category => ({
+                    category: category.category || 'Unknown',
+                    items: (category.items || []).map(item => ({
+                        id: `${period.summary || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
+                        name: item.item || 'Unknown Item',
+                        healthy: item.healthy || false
+                    }))
+                }));
             }
         });
 
@@ -413,24 +395,46 @@ class CornellDiningApp {
                     <img src="${isHallLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image">
                 </div>
             </div>
-            <div class="menu-layer hidden">
+            <div class="flashcard-back">
                 ${this.createMenuContent(hall)}
             </div>
         `;
 
-        // Add click handler for simple layer toggle
+        // Handle clicks with proper single/double tap detection
+        let clickCount = 0;
+        let clickTimer = null;
+        
         card.addEventListener('click', (e) => {
-            console.log('[Frontend] Card clicked, toggling menu layer');
-            e.stopPropagation();
-            this.toggleMenuLayer(card);
+            console.log('[Frontend] Card clicked, clickCount:', clickCount);
+            clickCount++;
+            
+            if (clickCount === 1) {
+                clickTimer = setTimeout(() => {
+                    // Single click - flip card
+                    console.log('[Frontend] Processing single click - attempting to flip card');
+                    if (!this.isFlipping) {
+                        console.log('[Frontend] Card not currently flipping, calling flipCard');
+                        this.flipCard(card);
+                    } else {
+                        console.log('[Frontend] Card is currently flipping, skipping flip');
+                    }
+                    clickCount = 0;
+                }, 250);
+            } else if (clickCount === 2) {
+                // Double click - handle heart
+                console.log('[Frontend] Processing double click - handling heart');
+                clearTimeout(clickTimer);
+                clickCount = 0;
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleDoubleTab(e, card, hall);
+            }
         });
 
         return card;
     }
 
     createMenuContent(hall) {
-        console.log('[Frontend] Creating menu content for:', hall.name);
-        
         if (!hall.menus || Object.keys(hall.menus).length === 0) {
             return `
                 <div class="menu-content">
@@ -455,7 +459,7 @@ class CornellDiningApp {
 
             categories.forEach(category => {
                 if (category.items && category.items.length > 0) {
-                    menuHTML += `<h5 class="category-title">${category.category}</h5>`;
+                    menuHTML += `<h5 style="font-weight: 500; color: #555; margin: 0.5rem 0;">${category.category}</h5>`;
                     category.items.forEach(item => {
                         const isItemLiked = this.user && this.userHearts.menuItems.includes(item.id);
                         menuHTML += `
@@ -477,18 +481,22 @@ class CornellDiningApp {
         return menuHTML;
     }
 
-    toggleMenuLayer(card) {
-        const menuLayer = card.querySelector('.menu-layer');
-        const frontLayer = card.querySelector('.flashcard-front');
+    flipCard(card) {
+        console.log('[Frontend] Starting card flip animation');
+        this.isFlipping = true;
         
-        if (menuLayer.classList.contains('hidden')) {
-            // Show menu layer
-            console.log('[Frontend] Showing menu layer');
-            menuLayer.classList.remove('hidden');
-            frontLayer.classList.add('hidden');
-            
-            // Add event listeners to menu items
-            const menuItems = menuLayer.querySelectorAll('.menu-item');
+        const isCurrentlyFlipped = card.classList.contains('flipped');
+        console.log(`[Frontend] Card is currently ${isCurrentlyFlipped ? 'flipped (showing back)' : 'unflipped (showing front)'}`);
+        
+        card.classList.toggle('flipped');
+        
+        const newState = card.classList.contains('flipped') ? 'back (menu)' : 'front (info)';
+        console.log(`[Frontend] Card flipped to show ${newState}`);
+        
+        // Add event listeners for menu items after flip
+        setTimeout(() => {
+            const menuItems = card.querySelectorAll('.menu-item');
+            console.log(`[Frontend] Adding event listeners to ${menuItems.length} menu items`);
             menuItems.forEach(item => {
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -496,11 +504,15 @@ class CornellDiningApp {
                     this.handleMenuItemHeart(e, item);
                 });
             });
-        } else {
-            // Hide menu layer
-            console.log('[Frontend] Hiding menu layer');
-            menuLayer.classList.add('hidden');
-            frontLayer.classList.remove('hidden');
+            this.isFlipping = false;
+            console.log('[Frontend] Card flip animation complete');
+        }, 300);
+    }
+
+    flipCurrentCard() {
+        const currentCard = document.querySelector(`.flashcard[data-index="${this.currentCardIndex}"]`);
+        if (currentCard) {
+            this.flipCard(currentCard);
         }
     }
 
@@ -512,8 +524,11 @@ class CornellDiningApp {
             return;
         }
 
-        // Heart the dining hall
-        await this.toggleDiningHallHeart(hall.id, card);
+        const isFlipped = card.classList.contains('flipped');
+        if (!isFlipped) {
+            // Heart the dining hall
+            await this.toggleDiningHallHeart(hall.id, card);
+        }
     }
 
     async handleMenuItemHeart(e, menuItem) {
@@ -661,7 +676,6 @@ class CornellDiningApp {
     }
 
     handleMouseDown(e) {
-        console.log('[Frontend] Mouse down event - target:', e.target.tagName, e.target.className);
         // Only handle left click on container or its children
         if (e.button !== 0) return;
         
@@ -669,7 +683,6 @@ class CornellDiningApp {
         const container = document.querySelector('.flashcard-container');
         if (!container || (!container.contains(e.target) && e.target !== container)) return;
         
-        console.log('[Frontend] Mouse down on container area');
         this.isMouseDown = true;
         this.startX = e.clientX;
         this.startY = e.clientY;
@@ -686,7 +699,6 @@ class CornellDiningApp {
     }
 
     handleMouseUp(e) {
-        console.log('[Frontend] Mouse up event - target:', e.target.tagName, e.target.className);
         if (!this.isMouseDown) return;
         
         this.isMouseDown = false;
