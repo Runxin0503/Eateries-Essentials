@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cornell Dining Flashcards</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="logo">Cornell Dining</h1>
+            <div class="profile-section">
+                <button id="profileBtn" class="profile-btn">
+                    <span id="profileIcon">👤</span>
+                    <span id="profileName">Sign In</span>
+                </button>
+                <div id="profileDropdown" class="profile-dropdown hidden">
+                    <div id="signInForm" class="sign-in-form">
+                        <input type="text" id="nameInput" placeholder="Enter your name" maxlength="20">
+                        <button id="signInBtn">Sign In</button>
+                    </div>
+                    <div id="userInfo" class="user-info hidden">
+                        <p>Hello, <span id="userName"></span>!</p>
+                        <button id="signOutBtn">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Auth Modal -->
+        <div id="authModal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Sign in to save your favorites!</h3>
+                <p>You need to sign in to like dining halls and menu items.</p>
+                <button id="modalSignInBtn" class="btn btn-primary">Sign In</button>
+                <button id="modalCloseBtn" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+
+        <!-- Loading Screen -->
+        <div id="loadingScreen" class="loading-screen">
+            <div class="spinner"></div>
+            <p>Loading dining halls...</p>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="flashcard-container">
+                <div id="flashcardStack" class="flashcard-stack">
+                    <!-- Flashcards will be dynamically generated here -->
+                </div>
+                
+                <!-- Navigation Dots -->
+                <div id="navigationDots" class="navigation-dots">
+                    <!-- Dots will be dynamically generated here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <p>Swipe left/right to browse dining halls • Tap card to flip • Double-tap to ❤️</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
