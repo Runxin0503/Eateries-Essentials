@@ -13,10 +13,16 @@ class CornellDiningApp {
     }
 
     async init() {
+        console.log('[Frontend] Initializing Cornell Dining App...');
         this.bindEvents();
+        console.log('[Frontend] Events bound');
         await this.checkAuth();
+        console.log('[Frontend] Auth checked');
         await this.loadDiningData();
+        console.log('[Frontend] Dining data loaded');
         this.renderFlashcards();
+        console.log('[Frontend] Flashcards rendered');
+        console.log('[Frontend] Initialization complete');
     }
 
     getOrCreateDeviceId() {
@@ -67,16 +73,6 @@ class CornellDiningApp {
             }
         });
 
-        // Touch events for swiping
-        document.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-        document.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-        document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
-
-        // Mouse events for desktop
-        document.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.addEventListener('mouseup', this.handleMouseUp.bind(this));
-
         // Keyboard navigation
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') {
@@ -88,11 +84,31 @@ class CornellDiningApp {
                 this.flipCurrentCard();
             }
         });
+
+        // Setup touch and mouse events after DOM is ready
+        setTimeout(() => {
+            this.setupSwipeEvents();
+        }, 100);
+    }
+
+    setupSwipeEvents() {
+        // Touch events for swiping on the container
+        const container = document.querySelector('.flashcard-container');
+        if (container) {
+            container.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+            container.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+            container.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+            
+            // Mouse events for desktop on container
+            container.addEventListener('mousedown', this.handleMouseDown.bind(this));
+            container.addEventListener('mousemove', this.handleMouseMove.bind(this));
+            container.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        }
     }
 
     async checkAuth() {
         try {
-            const response = await fetch(`http://localhost:3000/api/auth/check/${this.deviceId}`);
+            const response = await fetch(`/api/auth/check/${this.deviceId}`);
             const data = await response.json();
             
             if (data.signedIn) {
@@ -113,7 +129,7 @@ class CornellDiningApp {
         }
 
         try {
-            const response = await fetch('http://localhost:3000/api/auth/signin', {
+            const response = await fetch('/api/auth/signin', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -141,7 +157,7 @@ class CornellDiningApp {
 
     async signOut() {
         try {
-            await fetch(`http://localhost:3000/api/auth/signout/${this.deviceId}`, {
+            await fetch(`/api/auth/signout/${this.deviceId}`, {
                 method: 'DELETE'
             });
 
@@ -172,7 +188,7 @@ class CornellDiningApp {
         if (!this.user) return;
 
         try {
-            const response = await fetch(`http://localhost:3000/api/hearts/${this.user.userId}`);
+            const response = await fetch(`/api/hearts/${this.user.userId}`);
             const data = await response.json();
             this.userHearts = data;
         } catch (error) {
@@ -185,23 +201,53 @@ class CornellDiningApp {
         loadingScreen.classList.remove('hidden');
 
         try {
-            const response = await fetch('http://localhost:3000/api/dining');
+            console.log('[Frontend] Fetching dining data from backend...');
+            const response = await fetch('/api/dining');
+            console.log('[Frontend] Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
             const data = await response.json();
+            console.log('[Frontend] Received data:', data);
+            console.log('[Frontend] Data structure keys:', Object.keys(data));
+            
+            // Check if data has the expected structure
+            let eateries = [];
+            if (data && data.data && data.data.eateries) {
+                eateries = data.data.eateries;
+                console.log('[Frontend] Found eateries in data.data.eateries:', eateries.length);
+            } else if (data && data.eateries) {
+                eateries = data.eateries;
+                console.log('[Frontend] Found eateries in data.eateries:', eateries.length);
+            } else {
+                console.error('[Frontend] Unexpected data structure:', data);
+                throw new Error('Unexpected data structure from API');
+            }
             
             // Process and filter dining halls
-            this.diningHalls = data.eateries.filter(eatery => 
-                eatery.operatingHours && eatery.operatingHours.length > 0
-            ).map(eatery => ({
-                id: eatery.id,
-                name: eatery.name,
-                description: eatery.about || 'A dining location at Cornell University',
-                hours: this.formatHours(eatery.operatingHours),
-                menus: this.processMenus(eatery.operatingHours)
-            }));
+            this.diningHalls = eateries.filter(eatery => {
+                const hasHours = eatery.operatingHours && eatery.operatingHours.length > 0;
+                console.log(`[Frontend] Processing ${eatery.name}: hasHours=${hasHours}`);
+                return hasHours;
+            }).map(eatery => {
+                const processed = {
+                    id: eatery.id,
+                    name: eatery.name,
+                    description: eatery.about || 'A dining location at Cornell University',
+                    hours: this.formatHours(eatery.operatingHours),
+                    menus: this.processMenus(eatery.operatingHours)
+                };
+                console.log(`[Frontend] Processed dining hall:`, processed.name, 'with', Object.keys(processed.menus).length, 'meal types');
+                return processed;
+            });
 
+            console.log('[Frontend] Final processed dining halls:', this.diningHalls.length);
             loadingScreen.classList.add('hidden');
         } catch (error) {
-            console.error('Error loading dining data:', error);
+            console.error('[Frontend] Error loading dining data:', error);
+            console.error('[Frontend] Error stack:', error.stack);
             loadingScreen.classList.add('hidden');
             alert('Failed to load dining data. Please refresh the page.');
         }
@@ -213,23 +259,48 @@ class CornellDiningApp {
         }
 
         return operatingHours.map(period => {
-            const start = new Date(period.startTimestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const end = new Date(period.endTimestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            return `${period.summary}: ${start} - ${end}`;
+            // Handle different timestamp formats
+            let start, end;
+            
+            if (period.startTimestamp && period.endTimestamp) {
+                // Unix timestamp (seconds)
+                start = new Date(period.startTimestamp * 1000);
+                end = new Date(period.endTimestamp * 1000);
+            } else if (period.start && period.end) {
+                // ISO string format
+                start = new Date(period.start);
+                end = new Date(period.end);
+            } else {
+                // Fallback
+                return `${period.summary || 'Open'}`;
+            }
+            
+            // Check if dates are valid
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                return `${period.summary || 'Open'}`;
+            }
+            
+            const startTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const endTime = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return `${period.summary || 'Open'}: ${startTime} - ${endTime}`;
         }).join(' | ');
     }
 
     processMenus(operatingHours) {
         const menus = {};
         
+        if (!operatingHours || !Array.isArray(operatingHours)) {
+            return menus;
+        }
+        
         operatingHours.forEach(period => {
-            if (period.menu && period.menu.length > 0) {
-                const mealType = period.summary.toLowerCase();
+            if (period.menu && Array.isArray(period.menu) && period.menu.length > 0) {
+                const mealType = (period.summary || 'meal').toLowerCase();
                 menus[mealType] = period.menu.map(category => ({
-                    category: category.category,
-                    items: category.items.map(item => ({
-                        id: `${period.summary}_${category.category}_${item.item}`.replace(/\s+/g, '_'),
-                        name: item.item,
+                    category: category.category || 'Unknown',
+                    items: (category.items || []).map(item => ({
+                        id: `${period.summary || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
+                        name: item.item || 'Unknown Item',
                         healthy: item.healthy || false
                     }))
                 }));
@@ -240,23 +311,39 @@ class CornellDiningApp {
     }
 
     renderFlashcards() {
+        console.log('[Frontend] Rendering flashcards for', this.diningHalls.length, 'dining halls');
         const stack = document.getElementById('flashcardStack');
         const dots = document.getElementById('navigationDots');
+        
+        if (!stack || !dots) {
+            console.error('[Frontend] Could not find flashcard stack or navigation dots elements');
+            return;
+        }
         
         stack.innerHTML = '';
         dots.innerHTML = '';
 
+        if (this.diningHalls.length === 0) {
+            console.log('[Frontend] No dining halls to render');
+            stack.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">No dining halls available</div>';
+            return;
+        }
+
+        // Create all flashcards but only show the current one
         this.diningHalls.forEach((hall, index) => {
-            // Create flashcard
+            console.log(`[Frontend] Creating flashcard ${index + 1}/${this.diningHalls.length}: ${hall.name}`);
             const card = this.createFlashcard(hall, index);
+            
+            // Only show the current card, hide others
             if (index === this.currentCardIndex) {
-                card.style.zIndex = 100;
-                card.style.transform = 'translateX(0)';
+                card.style.display = 'block';
+                card.style.zIndex = '100';
+                card.style.transform = 'translateX(0) scale(1)';
+                card.style.opacity = '1';
             } else {
-                card.style.zIndex = 99 - Math.abs(index - this.currentCardIndex);
-                const offset = (index - this.currentCardIndex) * 20;
-                card.style.transform = `translateX(${offset}px)`;
+                card.style.display = 'none';
             }
+            
             stack.appendChild(card);
 
             // Create navigation dot
@@ -265,6 +352,8 @@ class CornellDiningApp {
             dot.addEventListener('click', () => this.goToCard(index));
             dots.appendChild(dot);
         });
+        
+        console.log('[Frontend] Flashcards rendered successfully');
     }
 
     createFlashcard(hall, index) {
@@ -290,24 +379,29 @@ class CornellDiningApp {
             </div>
         `;
 
-        // Add event listeners for flip and heart
+        // Handle clicks with proper single/double tap detection
+        let clickCount = 0;
+        let clickTimer = null;
+        
         card.addEventListener('click', (e) => {
-            if (!this.isFlipping) {
-                this.flipCard(card);
-            }
-        });
-
-        // Double-tap for hearts
-        let lastTap = 0;
-        card.addEventListener('click', (e) => {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
+            clickCount++;
             
-            if (tapLength < 500 && tapLength > 0) {
+            if (clickCount === 1) {
+                clickTimer = setTimeout(() => {
+                    // Single click - flip card
+                    if (!this.isFlipping) {
+                        this.flipCard(card);
+                    }
+                    clickCount = 0;
+                }, 250);
+            } else if (clickCount === 2) {
+                // Double click - handle heart
+                clearTimeout(clickTimer);
+                clickCount = 0;
                 e.preventDefault();
+                e.stopPropagation();
                 this.handleDoubleTab(e, card, hall);
             }
-            lastTap = currentTime;
         });
 
         return card;
@@ -410,7 +504,7 @@ class CornellDiningApp {
         const isLiked = heartIcon.classList.contains('liked');
 
         try {
-            const response = await fetch('http://localhost:3000/api/hearts/menu-item', {
+            const response = await fetch('/api/hearts/menu-item', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -445,7 +539,7 @@ class CornellDiningApp {
         const isLiked = heartIcon.classList.contains('liked');
 
         try {
-            const response = await fetch('http://localhost:3000/api/hearts/dining-hall', {
+            const response = await fetch('/api/hearts/dining-hall', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -481,6 +575,10 @@ class CornellDiningApp {
 
     // Touch and mouse event handlers for swiping
     handleTouchStart(e) {
+        // Only handle if we're not inside a flashcard (to avoid interfering with flip)
+        if (e.target.closest('.flashcard')) {
+            return;
+        }
         this.startX = e.touches[0].clientX;
         this.startY = e.touches[0].clientY;
     }
@@ -491,7 +589,7 @@ class CornellDiningApp {
         const deltaX = Math.abs(e.touches[0].clientX - this.startX);
         const deltaY = Math.abs(e.touches[0].clientY - this.startY);
         
-        if (deltaX > deltaY) {
+        if (deltaX > deltaY && deltaX > 10) {
             e.preventDefault(); // Prevent scrolling when swiping horizontally
         }
     }
@@ -504,7 +602,7 @@ class CornellDiningApp {
         const deltaX = endX - this.startX;
         const deltaY = Math.abs(endY - this.startY);
 
-        // Only process horizontal swipes
+        // Only process horizontal swipes with sufficient distance
         if (Math.abs(deltaX) > 50 && deltaY < 100) {
             if (deltaX > 0) {
                 this.previousCard();
@@ -518,31 +616,49 @@ class CornellDiningApp {
     }
 
     handleMouseDown(e) {
+        // Only handle left click on container or its children
+        if (e.button !== 0) return;
+        
+        // Check if we're clicking on the container or a child element
+        const container = document.querySelector('.flashcard-container');
+        if (!container || (!container.contains(e.target) && e.target !== container)) return;
+        
+        this.isMouseDown = true;
         this.startX = e.clientX;
         this.startY = e.clientY;
+        this.startTime = Date.now();
+        e.preventDefault();
     }
 
     handleMouseMove(e) {
-        // Mouse move handling if needed
+        if (!this.isMouseDown) return;
+        
+        this.currentX = e.clientX;
+        this.currentY = e.clientY;
+        e.preventDefault();
     }
 
     handleMouseUp(e) {
-        if (!this.startX || !this.startY) return;
-
-        const deltaX = e.clientX - this.startX;
-        const deltaY = Math.abs(e.clientY - this.startY);
-
-        // Only process horizontal swipes
-        if (Math.abs(deltaX) > 100 && deltaY < 50) {
+        if (!this.isMouseDown) return;
+        
+        this.isMouseDown = false;
+        const endTime = Date.now();
+        const deltaX = this.currentX - this.startX;
+        const deltaY = this.currentY - this.startY;
+        const deltaTime = endTime - this.startTime;
+        
+        // Check for swipe gesture vs click
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) && deltaTime < 500) {
             if (deltaX > 0) {
                 this.previousCard();
             } else {
                 this.nextCard();
             }
+        } else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
+            this.flipCurrentCard();
         }
-
-        this.startX = null;
-        this.startY = null;
+        
+        e.preventDefault();
     }
 
     nextCard() {
@@ -562,9 +678,11 @@ class CornellDiningApp {
     }
 
     goToCard(index) {
-        this.currentCardIndex = index;
-        this.updateCardPositions();
-        this.updateNavigationDots();
+        if (index >= 0 && index < this.diningHalls.length) {
+            this.currentCardIndex = index;
+            this.updateCardPositions();
+            this.updateNavigationDots();
+        }
     }
 
     updateCardPositions() {
@@ -572,14 +690,12 @@ class CornellDiningApp {
         cards.forEach((card, index) => {
             const cardIndex = parseInt(card.dataset.index);
             if (cardIndex === this.currentCardIndex) {
-                card.style.zIndex = 100;
-                card.style.transform = 'translateX(0)';
+                card.style.display = 'block';
+                card.style.zIndex = '100';
+                card.style.transform = 'translateX(0) scale(1)';
                 card.style.opacity = '1';
             } else {
-                card.style.zIndex = 99 - Math.abs(cardIndex - this.currentCardIndex);
-                const offset = (cardIndex - this.currentCardIndex) * 20;
-                card.style.transform = `translateX(${offset}px)`;
-                card.style.opacity = Math.abs(cardIndex - this.currentCardIndex) === 1 ? '0.7' : '0.3';
+                card.style.display = 'none';
             }
         });
     }

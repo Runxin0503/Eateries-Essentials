@@ -28,10 +28,22 @@ function getTodayDate() {
 app.get('/api/dining/:date?', async (req, res) => {
     try {
         const date = req.params.date || getTodayDate();
+        console.log(`[${new Date().toISOString()}] Fetching dining data for date: ${date}`);
+        
         const response = await axios.get(`${CORNELL_API_BASE}?date=${date}`);
+        console.log(`[${new Date().toISOString()}] Cornell API response status: ${response.status}`);
+        console.log(`[${new Date().toISOString()}] Cornell API response data keys:`, Object.keys(response.data));
+        
+        if (response.data && response.data.data && response.data.data.eateries) {
+            console.log(`[${new Date().toISOString()}] Found ${response.data.data.eateries.length} eateries`);
+        } else {
+            console.log(`[${new Date().toISOString()}] Unexpected data structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
+        }
+        
         res.json(response.data);
     } catch (error) {
-        console.error('Error fetching dining data:', error.message);
+        console.error(`[${new Date().toISOString()}] Error fetching dining data:`, error.message);
+        console.error(`[${new Date().toISOString()}] Error stack:`, error.stack);
         res.status(500).json({ error: 'Failed to fetch dining data' });
     }
 });
@@ -40,8 +52,10 @@ app.get('/api/dining/:date?', async (req, res) => {
 app.post('/api/auth/signin', async (req, res) => {
     try {
         const { name, deviceId } = req.body;
+        console.log(`[${new Date().toISOString()}] Sign-in attempt - Name: ${name}, DeviceId: ${deviceId}`);
         
         if (!name || !deviceId) {
+            console.log(`[${new Date().toISOString()}] Sign-in failed - Missing name or deviceId`);
             return res.status(400).json({ error: 'Name and deviceId are required' });
         }
 
@@ -50,6 +64,9 @@ app.post('/api/auth/signin', async (req, res) => {
         
         if (await fs.pathExists(userFile)) {
             users = await fs.readJson(userFile);
+            console.log(`[${new Date().toISOString()}] Loaded existing users file with ${Object.keys(users).length} users`);
+        } else {
+            console.log(`[${new Date().toISOString()}] Creating new users file`);
         }
 
         const userId = uuidv4();
@@ -61,13 +78,15 @@ app.post('/api/auth/signin', async (req, res) => {
         };
 
         await fs.writeJson(userFile, users, { spaces: 2 });
+        console.log(`[${new Date().toISOString()}] User signed in successfully - UserId: ${userId}`);
         
         res.json({ 
             success: true, 
             user: { userId, name, deviceId }
         });
     } catch (error) {
-        console.error('Error signing in:', error.message);
+        console.error(`[${new Date().toISOString()}] Error signing in:`, error.message);
+        console.error(`[${new Date().toISOString()}] Error stack:`, error.stack);
         res.status(500).json({ error: 'Failed to sign in' });
     }
 });
@@ -76,25 +95,33 @@ app.post('/api/auth/signin', async (req, res) => {
 app.get('/api/auth/check/:deviceId', async (req, res) => {
     try {
         const { deviceId } = req.params;
+        console.log(`[${new Date().toISOString()}] Checking auth for deviceId: ${deviceId}`);
+        
         const userFile = path.join(DATA_DIR, 'users.json');
         
         if (!(await fs.pathExists(userFile))) {
+            console.log(`[${new Date().toISOString()}] Users file does not exist`);
             return res.json({ signedIn: false });
         }
 
         const users = await fs.readJson(userFile);
+        console.log(`[${new Date().toISOString()}] Loaded users file with ${Object.keys(users).length} users`);
+        
         const user = users[deviceId];
         
         if (user) {
+            console.log(`[${new Date().toISOString()}] User found - Name: ${user.name}, UserId: ${user.userId}`);
             res.json({ 
                 signedIn: true, 
                 user: { userId: user.userId, name: user.name, deviceId: user.deviceId }
             });
         } else {
+            console.log(`[${new Date().toISOString()}] User not found for deviceId: ${deviceId}`);
             res.json({ signedIn: false });
         }
     } catch (error) {
-        console.error('Error checking auth:', error.message);
+        console.error(`[${new Date().toISOString()}] Error checking auth:`, error.message);
+        console.error(`[${new Date().toISOString()}] Error stack:`, error.stack);
         res.status(500).json({ error: 'Failed to check authentication' });
     }
 });
@@ -213,5 +240,11 @@ app.get('/api/hearts/:userId', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
+    console.log(`[${new Date().toISOString()}] Data directory: ${DATA_DIR}`);
+    console.log(`[${new Date().toISOString()}] Node environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Ensure data directory exists and log its status
+    fs.ensureDirSync(DATA_DIR);
+    console.log(`[${new Date().toISOString()}] Data directory ensured at: ${DATA_DIR}`);
 });

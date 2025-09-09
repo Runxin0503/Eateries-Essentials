@@ -232,8 +232,10 @@ body {
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
     cursor: pointer;
     transform-style: preserve-3d;
-    transition: transform 0.6s ease;
+    transition: all 0.6s ease;
     overflow: hidden;
+    left: 0;
+    top: 0;
 }
 
 .flashcard.flipped {
