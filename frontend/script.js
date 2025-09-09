@@ -273,27 +273,42 @@ class CornellDiningApp {
             return 'Hours not available';
         }
 
-        return operatingHours.map(period => {
+        const allEvents = [];
+        operatingHours.forEach(daySchedule => {
+            if (daySchedule.events && Array.isArray(daySchedule.events)) {
+                allEvents.push(...daySchedule.events);
+            }
+        });
+
+        if (allEvents.length === 0) {
+            return 'Hours not available';
+        }
+
+        return allEvents.map(event => {
             // Handle different timestamp formats
             let start, end;
             
-            if (period.startTimestamp && period.endTimestamp) {
+            if (event.startTimestamp && event.endTimestamp) {
                 // Unix timestamp (seconds)
-                start = new Date(period.startTimestamp * 1000);
-                end = new Date(period.endTimestamp * 1000);
-            } else if (period.start && period.end) {
-                // ISO string format
-                start = new Date(period.start);
-                end = new Date(period.end);
+                start = new Date(event.startTimestamp * 1000);
+                end = new Date(event.endTimestamp * 1000);
+            } else if (event.start && event.end) {
+                // ISO string format or time strings
+                if (typeof event.start === 'string' && typeof event.end === 'string') {
+                    // Just return the time strings as provided
+                    return `${event.descr || event.calSummary || 'Open'}: ${event.start} - ${event.end}`;
+                }
+                start = new Date(event.start);
+                end = new Date(event.end);
             } else {
-                // Fallback - just show the summary without day if no date info
-                return `${period.summary || 'Open'}`;
+                // Fallback - just show the description
+                return `${event.descr || event.calSummary || 'Open'}`;
             }
             
             // Check if dates are valid
             if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-                // If dates are invalid, just show summary without day
-                return `${period.summary || 'Open'}`;
+                // If dates are invalid, just show description
+                return `${event.descr || event.calSummary || 'Open'}`;
             }
             
             // Get day of the week from the actual date
@@ -301,7 +316,7 @@ class CornellDiningApp {
             const startTime = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const endTime = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
-            return `${dayOfWeek}: ${period.summary || 'Open'} ${startTime} - ${endTime}`;
+            return `${dayOfWeek}: ${event.descr || event.calSummary || 'Open'} ${startTime} - ${endTime}`;
         }).join(' | ');
     }
 
@@ -312,17 +327,21 @@ class CornellDiningApp {
             return menus;
         }
         
-        operatingHours.forEach(period => {
-            if (period.menu && Array.isArray(period.menu) && period.menu.length > 0) {
-                const mealType = (period.summary || 'meal').toLowerCase();
-                menus[mealType] = period.menu.map(category => ({
-                    category: category.category || 'Unknown',
-                    items: (category.items || []).map(item => ({
-                        id: `${period.summary || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
-                        name: item.item || 'Unknown Item',
-                        healthy: item.healthy || false
-                    }))
-                }));
+        operatingHours.forEach(daySchedule => {
+            if (daySchedule.events && Array.isArray(daySchedule.events)) {
+                daySchedule.events.forEach(event => {
+                    if (event.menu && Array.isArray(event.menu) && event.menu.length > 0) {
+                        const mealType = (event.descr || event.calSummary || 'meal').toLowerCase();
+                        menus[mealType] = event.menu.map(category => ({
+                            category: category.category || 'Unknown',
+                            items: (category.items || []).map(item => ({
+                                id: `${event.descr || event.calSummary || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
+                                name: item.item || 'Unknown Item',
+                                healthy: item.healthy || false
+                            }))
+                        }));
+                    }
+                });
             }
         });
 

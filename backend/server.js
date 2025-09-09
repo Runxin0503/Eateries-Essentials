@@ -242,7 +242,7 @@ app.get('/api/hearts/:userId', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
     console.log(`[${new Date().toISOString()}] Data directory: ${DATA_DIR}`);
-    console.log(`[${new Date().toISOString()}] Node environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[${new Date().toISOString()}] Node environment: ${process.env.NODE_ENV || 'develment'}`);
     
     // Ensure data directory exists and log its status
     fs.ensureDirSync(DATA_DIR);
