@@ -324,7 +324,7 @@ class CornellDiningApp {
                 const processed = {
                     id: eatery.id,
                     name: eatery.name,
-                    description: eatery.about || 'A dining location at Cornell University',
+                    description: this.cleanDescription(eatery.about) || 'A dining location at Cornell University',
                     hours: this.formatHours(eatery.operatingHours),
                     menus: this.processMenus(eatery.operatingHours)
                 };
@@ -340,6 +340,32 @@ class CornellDiningApp {
             loadingScreen.classList.add('hidden');
             alert('Failed to load dining data. Please refresh the page.');
         }
+    }
+
+    cleanDescription(aboutText) {
+        if (!aboutText) return '';
+        
+        // Remove HTML tags and decode HTML entities
+        let cleaned = aboutText
+            .replace(/<[^>]*>/g, '') // Remove HTML tags
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&nbsp;/g, ' ')
+            .replace(/\\r\\n/g, ' ')
+            .replace(/\\n/g, ' ')
+            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+            .trim();
+        
+        // Remove "More Info:" section and everything after it
+        const moreInfoIndex = cleaned.indexOf('More Info:');
+        if (moreInfoIndex !== -1) {
+            cleaned = cleaned.substring(0, moreInfoIndex).trim();
+        }
+        
+        return cleaned;
     }
 
     formatHours(operatingHours) {
@@ -517,9 +543,7 @@ class CornellDiningApp {
                     <img src="${isHallLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image">
                 </div>
             </div>
-            <div class="menu-content">
-                ${this.createMenuContent(hall)}
-            </div>
+            ${this.createMenuContent(hall)}
         `;
 
         // Add double-click handler for heart
