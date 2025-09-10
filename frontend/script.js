@@ -543,7 +543,17 @@ class CornellDiningApp {
             }
         });
 
-        // Create cards for open dining halls first
+        // Sort open halls: those with menus first, then those without menus
+        openHalls.sort((a, b) => {
+            const aHasMenu = this.hasMenuContent(a);
+            const bHasMenu = this.hasMenuContent(b);
+            
+            if (aHasMenu && !bHasMenu) return -1; // a comes first
+            if (!aHasMenu && bHasMenu) return 1;  // b comes first
+            return 0; // keep original order if both have same menu status
+        });
+
+        // Create cards for open dining halls first (with menus first, then without)
         openHalls.forEach((hall, index) => {
             const card = this.createDiningHallCard(hall, index, false);
             list.appendChild(card);
@@ -625,6 +635,10 @@ class CornellDiningApp {
                 hallCard.style.borderWidth = '2px';
             }, 2000);
         }
+    }
+
+    hasMenuContent(hall) {
+        return hall.menus && Object.keys(hall.menus).length > 0;
     }
 
     createDiningHallCard(hall, index, isClosed = false) {
