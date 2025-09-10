@@ -480,38 +480,38 @@ class CornellDiningApp {
             return;
         }
 
-        // Filter dining halls based on time selection
-        const filteredHalls = this.diningHalls.filter(hall => {
+        // Separate dining halls into open and closed
+        const openHalls = [];
+        const closedHalls = [];
+        
+        this.diningHalls.forEach(hall => {
             // Get original operating hours for this dining hall
             const operatingHours = this.getOriginalOperatingHours(hall.id);
             const hallWithHours = { ...hall, operatingHours };
-            return this.isDiningHallOpenAtTime(hallWithHours);
+            
+            if (this.isDiningHallOpenAtTime(hallWithHours)) {
+                openHalls.push(hallWithHours);
+            } else {
+                closedHalls.push(hallWithHours);
+            }
         });
 
-        if (filteredHalls.length === 0) {
-            // Convert 24-hour time to 12-hour format for display
-            const timeDisplay = this.formatTimeForDisplay(this.selectedTime);
-            list.innerHTML = `
-                <div style="text-align: center; padding: 2rem; color: #666;">
-                    No dining halls are open at ${timeDisplay}
-                </div>
-            `;
-            return;
-        }
-
-        // Create filtered dining hall cards with operating hours attached
-        filteredHalls.forEach((hall, index) => {
-            // Get original operating hours for this dining hall
-            const operatingHours = this.getOriginalOperatingHours(hall.id);
-            const hallWithHours = { ...hall, operatingHours };
-            const card = this.createDiningHallCard(hallWithHours, index);
+        // Create cards for open dining halls first
+        openHalls.forEach((hall, index) => {
+            const card = this.createDiningHallCard(hall, index, false);
+            list.appendChild(card);
+        });
+        
+        // Create cards for closed dining halls (greyed out)
+        closedHalls.forEach((hall, index) => {
+            const card = this.createDiningHallCard(hall, openHalls.length + index, true);
             list.appendChild(card);
         });
     }
 
-    createDiningHallCard(hall, index) {
+    createDiningHallCard(hall, index, isClosed = false) {
         const card = document.createElement('div');
-        card.className = 'dining-hall-card';
+        card.className = `dining-hall-card ${isClosed ? 'closed-hall' : ''}`;
         card.dataset.index = index;
         card.dataset.hallId = hall.id;
 
