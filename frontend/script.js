@@ -546,10 +546,31 @@ class CornellDiningApp {
             ${this.createMenuContent(hall)}
         `;
 
-        // Add double-click handler for heart
+        // Add click handler for heart icon
+        const heartIcon = card.querySelector('.heart-icon');
+        heartIcon.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleHeartClick(e, card, hall);
+        });
+
+        // Add double-click handler for smart hearting
         card.addEventListener('dblclick', (e) => {
             e.preventDefault();
-            this.handleDoubleTab(e, card, hall);
+            this.handleSmartDoubleClick(e, card, hall);
+        });
+
+        // Add single-click handlers for menu item hearts
+        const menuItemHearts = card.querySelectorAll('.menu-item-heart');
+        menuItemHearts.forEach(heartElement => {
+            heartElement.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const menuItem = e.target.closest('.menu-item');
+                if (menuItem) {
+                    this.handleMenuItemHeart(e, menuItem);
+                }
+            });
         });
 
         return card;
@@ -802,7 +823,7 @@ class CornellDiningApp {
         return menuHTML;
     }
 
-    async handleDoubleTab(e, card, hall) {
+    async handleHeartClick(e, card, hall) {
         e.stopPropagation();
         
         if (!this.user) {
@@ -812,6 +833,26 @@ class CornellDiningApp {
 
         // Heart the dining hall
         await this.toggleDiningHallHeart(hall.id, card);
+    }
+
+    async handleSmartDoubleClick(e, card, hall) {
+        e.stopPropagation();
+        
+        if (!this.user) {
+            this.showAuthModal();
+            return;
+        }
+
+        // Check if the double-click target is a menu item or within a menu item
+        const menuItem = e.target.closest('.menu-item');
+        
+        if (menuItem) {
+            // Double-clicked on a menu item - heart the menu item
+            await this.handleMenuItemHeart(e, menuItem);
+        } else {
+            // Double-clicked elsewhere - heart the dining hall
+            await this.toggleDiningHallHeart(hall.id, card);
+        }
     }
 
     async handleMenuItemHeart(e, menuItem) {
