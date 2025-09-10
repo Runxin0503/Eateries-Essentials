@@ -8,7 +8,7 @@ class CornellDiningApp {
         this.deviceId = this.getOrCreateDeviceId();
         this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
         this.availableDates = []; // Will be populated from API data
-        this.selectedTime = '08:00'; // Default time
+        this.selectedTime = 'now'; // Default to current time
 
         this.init();
     }
@@ -126,6 +126,8 @@ class CornellDiningApp {
         console.log('[Frontend] Time filter changed to:', this.selectedTime);
         // Re-render dining halls with time filtering
         this.renderDiningHalls();
+        // Also reload recommendations with new time
+        this.loadRecommendations();
     }
 
     updateDayOfWeek() {
@@ -287,8 +289,17 @@ class CornellDiningApp {
 
         try {
             const now = new Date();
-            const time = this.selectedTime || `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            const day = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            let time, day;
+            
+            if (this.selectedTime === 'now') {
+                // Use current time and day
+                time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                day = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            } else {
+                // Use selected time but current day
+                time = this.selectedTime;
+                day = now.getDay();
+            }
             
             const response = await fetch(`/api/recommendations/${this.user.userId}?time=${time}&day=${day}`);
             const data = await response.json();
@@ -756,7 +767,12 @@ class CornellDiningApp {
         }
         
         // Convert selected time to minutes for easier comparison
-        const selectedMinutes = this.timeToMinutes(this.selectedTime);
+        let timeToCheck = this.selectedTime;
+        if (timeToCheck === 'now') {
+            const now = new Date();
+            timeToCheck = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        }
+        const selectedMinutes = this.timeToMinutes(timeToCheck);
         
         // Check if any event contains the specified time
         return selectedDateSchedule.events.some(event => {
