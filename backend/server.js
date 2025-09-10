@@ -239,6 +239,97 @@ app.get('/api/hearts/:userId', async (req, res) => {
     }
 });
 
+// Get dining hall recommendations for a user
+app.get('/api/recommendations/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { time, day } = req.query; // Expected format: time="14:00", day="1" (0=Sunday, 1=Monday, etc.)
+        
+        console.log(`[${new Date().toISOString()}] Getting recommendations for userId: ${userId}, time: ${time}, day: ${day}`);
+        
+        const recommendations = await generateRecommendations(userId, time, day);
+        
+        res.json({
+            success: true,
+            recommendations
+        });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error getting recommendations:`, error.message);
+        res.status(500).json({ error: 'Failed to get recommendations' });
+    }
+});
+
+// Simple recommendation algorithm based on user's heart history
+async function generateRecommendations(userId, time, day) {
+    const heartsFile = path.join(DATA_DIR, 'hearts.json');
+    
+    if (!(await fs.pathExists(heartsFile))) {
+        // No heart data yet, return sample recommendations
+        return getSampleRecommendations();
+    }
+
+    const hearts = await fs.readJson(heartsFile);
+    const userDiningHallHearts = hearts.diningHalls?.[userId] || [];
+    const userMenuItemHearts = hearts.menuItems?.[userId] || [];
+    
+    // If user has no hearts, return sample recommendations
+    if (userDiningHallHearts.length === 0 && userMenuItemHearts.length === 0) {
+        return getSampleRecommendations();
+    }
+    
+    // Score dining halls based on user's heart history
+    const diningHallScores = {};
+    
+    // Give points for directly hearted dining halls
+    userDiningHallHearts.forEach(hallId => {
+        diningHallScores[hallId] = (diningHallScores[hallId] || 0) + 2;
+    });
+    
+    // Give points for dining halls that serve hearted menu items
+    // (This is a simplified version - in a full implementation, you'd need to track which dining halls serve which menu items)
+    userMenuItemHearts.forEach(menuItemId => {
+        // For now, randomly assign menu items to dining halls for demo purposes
+        const possibleHalls = ['1', '2', '3', '4', '5']; // Replace with actual hall IDs
+        const randomHall = possibleHalls[Math.floor(Math.random() * possibleHalls.length)];
+        diningHallScores[randomHall] = (diningHallScores[randomHall] || 0) + 1;
+    });
+    
+    // Convert to array and sort by score
+    const sortedHalls = Object.entries(diningHallScores)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([hallId, score]) => ({
+            diningHallId: hallId,
+            confidence: Math.min(score / 5, 1), // Normalize confidence to 0-1
+            reason: score >= 2 ? 'You liked this dining hall' : 'Based on your food preferences'
+        }));
+    
+    // If we have fewer than 3, fill with sample recommendations
+    while (sortedHalls.length < 3) {
+        const sampleRecs = getSampleRecommendations();
+        const existingIds = sortedHalls.map(r => r.diningHallId);
+        const newRec = sampleRecs.find(r => !existingIds.includes(r.diningHallId));
+        if (newRec) {
+            sortedHalls.push(newRec);
+        } else {
+            break;
+        }
+    }
+    
+    return sortedHalls;
+}
+
+function getSampleRecommendations() {
+    const sampleHalls = [
+        { diningHallId: '1', confidence: 0.7, reason: 'Popular choice for this time' },
+        { diningHallId: '2', confidence: 0.6, reason: 'Great variety available' },
+        { diningHallId: '3', confidence: 0.5, reason: 'Convenient location' }
+    ];
+    
+    // Shuffle and return up to 3
+    return sampleHalls.sort(() => Math.random() - 0.5).slice(0, 3);
+}
+
 app.listen(PORT, () => {
     console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
     console.log(`[${new Date().toISOString()}] Data directory: ${DATA_DIR}`);

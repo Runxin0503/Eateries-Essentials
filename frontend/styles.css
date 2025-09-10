@@ -321,6 +321,97 @@ body {
     max-width: none;
 }
 
+.dining-hall-spacer {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;
+    margin-bottom: 1.5rem;
+    min-height: 120px;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(5px);
+}
+
+.recommendation-header {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.recommendation-header h3 {
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.recommendation-subtitle {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.recommendation-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.recommendation-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.recommendation-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.recommendation-card:hover {
+    background: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: #667eea;
+}
+
+.recommendation-card.empty {
+    background: rgba(255, 255, 255, 0.3);
+    cursor: default;
+    opacity: 0.7;
+}
+
+.recommendation-card.empty:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.recommendation-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.recommendation-confidence {
+    color: #667eea;
+    font-weight: 500;
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+.recommendation-reason {
+    color: #666;
+    font-size: 0.75rem;
+    line-height: 1.3;
+}
+
 .dining-hall-card.closed-hall {
     background: rgba(248, 249, 250, 0.7);
     opacity: 0.6;

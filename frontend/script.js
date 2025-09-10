@@ -4,6 +4,7 @@ class CornellDiningApp {
         this.originalEateries = []; // Store original eateries data for time filtering
         this.user = null;
         this.userHearts = { diningHalls: [], menuItems: [] };
+        this.recommendations = [];
         this.deviceId = this.getOrCreateDeviceId();
         this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
         this.availableDates = []; // Will be populated from API data
@@ -20,6 +21,8 @@ class CornellDiningApp {
         console.log('[Frontend] Auth checked');
         await this.loadDiningData();
         console.log('[Frontend] Dining data loaded');
+        await this.loadRecommendations();
+        console.log('[Frontend] Recommendations loaded');
         this.initializeDateSelector(); // Initialize after data is loaded
         console.log('[Frontend] Date selector initialized');
         this.renderDiningHalls();
@@ -222,7 +225,8 @@ class CornellDiningApp {
                 document.getElementById('profileDropdown').classList.add('hidden');
                 document.getElementById('nameInput').value = '';
                 await this.loadUserHearts();
-                this.renderDiningHalls(); // Re-render to show hearts
+                await this.loadRecommendations();
+                this.renderDiningHalls(); // Re-render to show hearts and recommendations
             }
         } catch (error) {
             console.error('Error signing in:', error);
@@ -272,6 +276,31 @@ class CornellDiningApp {
             this.userHearts = data;
         } catch (error) {
             console.error('Error loading user hearts:', error);
+        }
+    }
+
+    async loadRecommendations() {
+        if (!this.user) {
+            this.recommendations = [];
+            return;
+        }
+
+        try {
+            const now = new Date();
+            const time = this.selectedTime || `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            const day = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            
+            const response = await fetch(`/api/recommendations/${this.user.userId}?time=${time}&day=${day}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.recommendations = data.recommendations;
+            } else {
+                this.recommendations = [];
+            }
+        } catch (error) {
+            console.error('Error loading recommendations:', error);
+            this.recommendations = [];
         }
     }
 
@@ -480,6 +509,24 @@ class CornellDiningApp {
             return;
         }
 
+        // Add empty spacer row at the top
+        const spacerRow = document.createElement('div');
+        spacerRow.className = 'dining-hall-spacer';
+        spacerRow.innerHTML = this.createRecommendationContent();
+        
+        // Add click handlers for recommendation cards
+        spacerRow.addEventListener('click', (e) => {
+            const recommendationCard = e.target.closest('.recommendation-card');
+            if (recommendationCard && !recommendationCard.classList.contains('empty')) {
+                const hallId = recommendationCard.dataset.hallId;
+                if (hallId) {
+                    this.scrollToHall(hallId);
+                }
+            }
+        });
+        
+        list.appendChild(spacerRow);
+
         // Separate dining halls into open and closed
         const openHalls = [];
         const closedHalls = [];
@@ -507,6 +554,77 @@ class CornellDiningApp {
             const card = this.createDiningHallCard(hall, openHalls.length + index, true);
             list.appendChild(card);
         });
+    }
+
+    createRecommendationContent() {
+        if (!this.user) {
+            return `
+                <div class="recommendation-header">
+                    <h3>Sign in to see personalized recommendations</h3>
+                </div>
+            `;
+        }
+
+        if (this.recommendations.length === 0) {
+            return `
+                <div class="recommendation-header">
+                    <h3>Recommended for you</h3>
+                    <p class="recommendation-subtitle">Start liking dining halls and meals to get personalized recommendations!</p>
+                </div>
+            `;
+        }
+
+        const recommendationColumns = this.recommendations.map(rec => {
+            const hall = this.diningHalls.find(h => h.id === rec.diningHallId);
+            const hallName = hall ? hall.name : `Dining Hall ${rec.diningHallId}`;
+            
+            return `
+                <div class="recommendation-column">
+                    <div class="recommendation-card" data-hall-id="${rec.diningHallId}">
+                        <div class="recommendation-name">${hallName}</div>
+                        <div class="recommendation-confidence">${Math.round(rec.confidence * 100)}% match</div>
+                        <div class="recommendation-reason">${rec.reason}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Fill remaining columns if less than 3 recommendations
+        const emptyColumns = Math.max(0, 3 - this.recommendations.length);
+        const emptyColumnHTML = Array(emptyColumns).fill(`
+            <div class="recommendation-column">
+                <div class="recommendation-card empty">
+                    <div class="recommendation-name">More recommendations coming soon...</div>
+                </div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="recommendation-header">
+                <h3>Recommended for you</h3>
+                <p class="recommendation-subtitle">Based on your dining preferences</p>
+            </div>
+            <div class="recommendation-columns">
+                ${recommendationColumns}${emptyColumnHTML}
+            </div>
+        `;
+    }
+
+    scrollToHall(hallId) {
+        const hallCard = document.querySelector(`[data-hall-id="${hallId}"]`);
+        if (hallCard && !hallCard.classList.contains('recommendation-card')) {
+            hallCard.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+            // Add a brief highlight effect
+            hallCard.style.borderColor = '#667eea';
+            hallCard.style.borderWidth = '3px';
+            setTimeout(() => {
+                hallCard.style.borderColor = 'transparent';
+                hallCard.style.borderWidth = '2px';
+            }, 2000);
+        }
     }
 
     createDiningHallCard(hall, index, isClosed = false) {
