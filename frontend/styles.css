@@ -381,7 +381,7 @@ body {
 }
 
 .meal-section.expanded .meal-items {
-    max-height: 1000px;
+    max-height: 100000px;
     padding: 1rem;
 }
 
