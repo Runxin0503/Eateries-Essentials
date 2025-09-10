@@ -4,6 +4,8 @@ class CornellDiningApp {
         this.user = null;
         this.userHearts = { diningHalls: [], menuItems: [] };
         this.deviceId = this.getOrCreateDeviceId();
+        this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
+        this.availableDates = []; // Will be populated from API data
 
         this.init();
     }
@@ -16,6 +18,8 @@ class CornellDiningApp {
         console.log('[Frontend] Auth checked');
         await this.loadDiningData();
         console.log('[Frontend] Dining data loaded');
+        this.initializeDateSelector(); // Initialize after data is loaded
+        console.log('[Frontend] Date selector initialized');
         this.renderFlashcards();
         console.log('[Frontend] Flashcards rendered');
         console.log('[Frontend] Initialization complete');
@@ -31,6 +35,12 @@ class CornellDiningApp {
     }
 
     bindEvents() {
+        // Date selector change event (don't initialize here - do it after data loads)
+        document.getElementById('dateSelector').addEventListener('change', (e) => {
+            this.selectedDate = e.target.value;
+            this.onDateChange();
+        });
+        
         // Profile dropdown
         document.getElementById('profileBtn').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -74,6 +84,79 @@ class CornellDiningApp {
                 this.signIn();
             }
         });
+    }
+
+    initializeDateSelector() {
+        const dateSelector = document.getElementById('dateSelector');
+        // Set default value to today (or first available date if today is not available)
+        dateSelector.value = this.selectedDate;
+        
+        // Set min and max dates based on available dates from API data
+        if (this.availableDates.length > 0) {
+            const sortedDates = [...this.availableDates].sort();
+            dateSelector.min = sortedDates[0];
+            dateSelector.max = sortedDates[sortedDates.length - 1];
+            
+            // If current selected date is not in available dates, use the first available date
+            if (!this.availableDates.includes(this.selectedDate)) {
+                this.selectedDate = sortedDates[0];
+                dateSelector.value = this.selectedDate;
+            }
+        }
+        
+        // Update day of week display
+        this.updateDayOfWeek();
+    }
+
+    updateDayOfWeek() {
+        const dayOfWeekElement = document.getElementById('dayOfWeek');
+        if (this.selectedDate) {
+            const date = new Date(this.selectedDate + 'T00:00:00');
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+            dayOfWeekElement.textContent = dayName;
+        }
+    }
+
+    extractAvailableDates(eateries) {
+        const dates = new Set();
+        
+        eateries.forEach(eatery => {
+            if (eatery.operatingHours && Array.isArray(eatery.operatingHours)) {
+                eatery.operatingHours.forEach(hours => {
+                    if (hours.date) {
+                        // Extract YYYY-MM-DD from date string
+                        const dateOnly = hours.date.split('T')[0];
+                        dates.add(dateOnly);
+                    }
+                });
+            }
+        });
+        
+        this.availableDates = Array.from(dates).sort();
+        console.log('[Frontend] Available dates:', this.availableDates);
+    }
+
+    async onDateChange() {
+        console.log('[Frontend] Date changed to:', this.selectedDate);
+        
+        // Update day of week display
+        this.updateDayOfWeek();
+        
+        // Show loading screen
+        const loadingScreen = document.getElementById('loadingScreen');
+        loadingScreen.classList.remove('hidden');
+        
+        try {
+            // Reload dining data for the new date
+            await this.loadDiningData();
+            // Re-render the dining halls
+            this.renderFlashcards();
+        } catch (error) {
+            console.error('[Frontend] Error loading data for new date:', error);
+        } finally {
+            // Hide loading screen
+            loadingScreen.classList.add('hidden');
+        }
     }
 
     async checkAuth() {
@@ -180,8 +263,13 @@ class CornellDiningApp {
         loadingScreen.classList.remove('hidden');
 
         try {
-            console.log('[Frontend] Fetching dining data from backend...');
-            const response = await fetch('/api/dining');
+            // For initial load, get data without a specific date to get the full range
+            // For subsequent loads, use the selected date
+            const isInitialLoad = this.availableDates.length === 0;
+            const url = isInitialLoad ? '/api/dining' : `/api/dining/${this.selectedDate}`;
+            
+            console.log('[Frontend] Fetching dining data from backend for date:', isInitialLoad ? 'all dates' : this.selectedDate);
+            const response = await fetch(url);
             console.log('[Frontend] Response status:', response.status);
             
             if (!response.ok) {
@@ -204,6 +292,9 @@ class CornellDiningApp {
                 console.error('[Frontend] Unexpected data structure:', data);
                 throw new Error('Unexpected data structure from API');
             }
+            
+            // Extract available dates from the data
+            this.extractAvailableDates(eateries);
             
             // Process and filter dining halls
             this.diningHalls = eateries.filter(eatery => {
@@ -237,7 +328,20 @@ class CornellDiningApp {
             return 'Hours not available';
         }
 
-        return operatingHours.map(period => {
+        // Filter for selected date only
+        const selectedDateHours = operatingHours.filter(period => {
+            if (period.date) {
+                const periodDate = period.date.split('T')[0]; // Extract YYYY-MM-DD from date string
+                return periodDate === this.selectedDate;
+            }
+            return false;
+        });
+
+        if (selectedDateHours.length === 0) {
+            return 'Closed today';
+        }
+
+        return selectedDateHours.map(period => {
             // Handle different timestamp formats
             let start, end;
             
@@ -276,32 +380,43 @@ class CornellDiningApp {
             return menus;
         }
         
-        operatingHours.forEach(period => {
-            if (period.events && Array.isArray(period.events)) {
-                period.events.forEach(event => {
-                    if (event.menu && Array.isArray(event.menu) && event.menu.length > 0) {
-                        const mealType = (event.descr || 'meal').toLowerCase();
-                        
-                        if (!menus[mealType]) {
-                            menus[mealType] = [];
-                        }
-                        
-                        // Add all categories from this event's menu
-                        event.menu.forEach(category => {
-                            menus[mealType].push({
-                                category: category.category || 'Unknown',
-                                items: (category.items || []).map(item => ({
-                                    id: `${event.descr || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
-                                    name: item.item || 'Unknown Item',
-                                    healthy: item.healthy || false
-                                }))
-                            });
-                        });
-                    }
+        // Use the selected date instead of hardcoded today
+        console.log('[Frontend] Processing menus for date:', this.selectedDate);
+        
+        // Find selected date's operating hours only
+        const selectedDateHours = operatingHours.find(period => period.date === this.selectedDate);
+        
+        if (!selectedDateHours || !selectedDateHours.events || !Array.isArray(selectedDateHours.events)) {
+            console.log('[Frontend] No operating hours found for selected date:', this.selectedDate);
+            return menus;
+        }
+        
+        console.log('[Frontend] Found', selectedDateHours.events.length, 'events for selected date');
+        
+        selectedDateHours.events.forEach(event => {
+            if (event.menu && Array.isArray(event.menu) && event.menu.length > 0) {
+                const mealType = (event.descr || 'meal').toLowerCase();
+                console.log('[Frontend] Processing meal type:', mealType, 'with', event.menu.length, 'categories');
+                
+                if (!menus[mealType]) {
+                    menus[mealType] = [];
+                }
+                
+                // Add all categories from this event's menu
+                event.menu.forEach(category => {
+                    menus[mealType].push({
+                        category: category.category || 'Unknown',
+                        items: (category.items || []).map(item => ({
+                            id: `${event.descr || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
+                            name: item.item || 'Unknown Item',
+                            healthy: item.healthy || false
+                        }))
+                    });
                 });
             }
         });
 
+        console.log('[Frontend] Processed menus:', Object.keys(menus));
         return menus;
     }
 
@@ -367,21 +482,20 @@ class CornellDiningApp {
     }
 
     isDiningHallOpen(hall) {
-        // Check if the dining hall has any events today that indicate it's open
+        // Check if the dining hall has any events on the selected date that indicate it's open
         if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
             return false;
         }
         
-        // Look for today's schedule
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        const todaySchedule = hall.operatingHours.find(schedule => schedule.date === today);
+        // Look for selected date's schedule
+        const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
         
-        if (!todaySchedule) {
+        if (!selectedDateSchedule) {
             return false;
         }
         
         // If status is "EVENTS", it's likely open
-        return todaySchedule.status === 'EVENTS' && todaySchedule.events && todaySchedule.events.length > 0;
+        return selectedDateSchedule.status === 'EVENTS' && selectedDateSchedule.events && selectedDateSchedule.events.length > 0;
     }
 
     createMenuContent(hall) {
@@ -390,7 +504,7 @@ class CornellDiningApp {
                 <div class="menu-content">
                     <h3 class="menu-title">Menu for ${hall.name}</h3>
                     <p style="text-align: center; color: #666; margin-top: 2rem;">
-                        No menu available for today
+                        No menu available for selected date
                     </p>
                 </div>
             `;

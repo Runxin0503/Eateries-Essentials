@@ -1,0 +1,378 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Generated schema for Root",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "eateries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "nameshort": {
+                "type": "string"
+              },
+              "about": {
+                "type": "string"
+              },
+              "aboutshort": {
+                "type": "string"
+              },
+              "nutrition": {
+                "type": "string"
+              },
+              "cornellDining": {
+                "type": "boolean"
+              },
+              "opHoursCalc": {
+                "type": "string"
+              },
+              "opHoursCalcDescr": {
+                "type": "string"
+              },
+              "opHoursDescr": {
+                "type": "string"
+              },
+              "googleCalendarId": {
+                "type": "string"
+              },
+              "onlineOrdering": {
+                "type": "boolean"
+              },
+              "onlineOrderUrl": {
+                "type": "string"
+              },
+              "contactPhone": {
+                "type": "string"
+              },
+              "contactEmail": {
+                "type": "string"
+              },
+              "serviceUnitId": {
+                "type": "number"
+              },
+              "campusArea": {
+                "type": "object",
+                "properties": {
+                  "descr": {
+                    "type": "string"
+                  },
+                  "descrshort": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "descr",
+                  "descrshort"
+                ]
+              },
+              "latitude": {
+                "type": "number"
+              },
+              "longitude": {
+                "type": "number"
+              },
+              "location": {
+                "type": "string"
+              },
+              "coordinates": {
+                "type": "object",
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "latitude",
+                  "longitude"
+                ]
+              },
+              "operatingHours": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "date": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "descr": {
+                            "type": "string"
+                          },
+                          "startTimestamp": {
+                            "type": "number"
+                          },
+                          "endTimestamp": {
+                            "type": "number"
+                          },
+                          "start": {
+                            "type": "string"
+                          },
+                          "end": {
+                            "type": "string"
+                          },
+                          "menu": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "sortIdx": {
+                                  "type": "number"
+                                },
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "item": {
+                                        "type": "string"
+                                      },
+                                      "healthy": {
+                                        "type": "boolean"
+                                      },
+                                      "sortIdx": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "item",
+                                      "healthy",
+                                      "sortIdx"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "category",
+                                "sortIdx",
+                                "items"
+                              ]
+                            }
+                          },
+                          "calSummary": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "descr",
+                          "startTimestamp",
+                          "endTimestamp",
+                          "start",
+                          "end",
+                          "menu",
+                          "calSummary"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "date",
+                    "status",
+                    "events"
+                  ]
+                }
+              },
+              "eateryTypes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "descr": {
+                      "type": "string"
+                    },
+                    "descrshort": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "descr",
+                    "descrshort"
+                  ]
+                }
+              },
+              "diningCuisines": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "nameshort": {
+                      "type": "string"
+                    },
+                    "descr": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "nameshort"
+                  ]
+                }
+              },
+              "payMethods": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "descr": {
+                      "type": "string"
+                    },
+                    "descrshort": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "descr",
+                    "descrshort"
+                  ]
+                }
+              },
+              "diningItems": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "descr": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "item": {
+                      "type": "string"
+                    },
+                    "healthy": {
+                      "type": "boolean"
+                    },
+                    "showCategory": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "descr",
+                    "category",
+                    "item",
+                    "healthy",
+                    "showCategory"
+                  ]
+                }
+              },
+              "announcements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "announceType": {
+                      "type": "string"
+                    },
+                    "startTimestamp": {
+                      "type": "number"
+                    },
+                    "stopTimestamp": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "announceType",
+                    "startTimestamp",
+                    "stopTimestamp"
+                  ]
+                }
+              },
+              "icon": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "slug",
+              "name",
+              "nameshort",
+              "about",
+              "aboutshort",
+              "cornellDining",
+              "opHoursCalc",
+              "opHoursCalcDescr",
+              "googleCalendarId",
+              "onlineOrdering",
+              "campusArea",
+              "latitude",
+              "longitude",
+              "location",
+              "coordinates",
+              "operatingHours",
+              "eateryTypes",
+              "diningCuisines",
+              "payMethods",
+              "diningItems",
+              "announcements",
+              "icon"
+            ]
+          }
+        }
+      },
+      "required": [
+        "eateries"
+      ]
+    },
+    "message": {},
+    "meta": {
+      "type": "object",
+      "properties": {
+        "copyright": {
+          "type": "string"
+        },
+        "responseDttm": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "copyright",
+        "responseDttm"
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "data",
+    "message",
+    "meta"
+  ]
+}

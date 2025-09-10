@@ -35,6 +35,59 @@ body {
     font-weight: 600;
 }
 
+.date-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.date-label {
+    color: white;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.date-selector {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.date-selector:hover {
+    background: white;
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.date-selector:focus {
+    outline: none;
+    background: white;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.day-of-week {
+    color: white;
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    min-width: 80px;
+    text-align: center;
+}
+
 .profile-section {
     position: relative;
 }
