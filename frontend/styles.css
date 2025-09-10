@@ -631,22 +631,12 @@ body {
         padding: 1rem;
     }
     
-    .flashcard-container {
-        max-width: 350px;
-        height: 550px;
-    }
-    
     .logo {
         font-size: 1.25rem;
     }
 }
 
 @media (max-width: 480px) {
-    .flashcard-container {
-        max-width: 300px;
-        height: 500px;
-    }
-    
     .dining-hall-image {
         height: 200px;
     }

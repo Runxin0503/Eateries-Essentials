@@ -1,30 +1,30 @@
-# Cornell Dining Flashcards App
+# Cornell Dining Halls App
 
-A modern, interactive web application that displays Cornell University dining halls as swipeable flashcards with heart/like functionality and user authentication.
+A modern, user-friendly web application for browsing Cornell University dining halls and their menus. Built with Docker for easy deployment and cross-platform compatibility.
 
 ## Features
 
-### 🍽️ **Flashcard Interface**
-- Swipeable cards showing Cornell dining halls
-- Front: Dining hall info with image placeholder, name, hours, and description
-- Back: Detailed menus (breakfast, lunch, dinner, brunch)
-- Touch/mouse swipe navigation and keyboard controls (arrow keys, spacebar to flip)
+### 🍽️ **Single-Column Layout**
+- Simple, organized list of Cornell dining halls
+- Each hall shows current status and operating hours
+- Expandable menu sections for breakfast, lunch, dinner
+- Date and time filtering for accurate information
+- Mobile-responsive design with touch-friendly interactions
 
-### ❤️ **Heart/Like System**
-- Double-tap dining halls (when card is front-facing) to heart the dining hall
-- Double-tap individual menu items (when card is flipped) to heart specific items
+### ❤️ **Favorites System**
+- Double-tap dining halls to add them to your favorites
 - Visual feedback with heart animations
-- Instagram-like interaction pattern
+- Simple and intuitive interaction pattern
 
 ### 👤 **User Authentication**
 - Simple name-based sign-in system
 - Device-based authentication (auto sign-in on same device)
 - Profile management with sign-out functionality
-- Must be signed in to use heart/like features
+- Must be signed in to use favorites features
 
 ### 💾 **Data Persistence**
 - User data stored in Docker volumes
-- Hearts/likes persist across sessions
+- Favorites persist across sessions
 - Device recognition for automatic sign-in
 - Sign-out removes device data for privacy
 
@@ -57,8 +57,8 @@ A modern, interactive web application that displays Cornell University dining ha
    ```
 
 3. **Access the Application**
-   - Frontend: http://localhost:8080
-   - Backend API: http://localhost:3000
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:3001
 
 ## API Endpoints
 
@@ -70,10 +70,10 @@ A modern, interactive web application that displays Cornell University dining ha
 ### Dining Data
 - `GET /api/dining/:date?` - Get Cornell dining data (defaults to today)
 
-### Heart/Like System
+### Favorites System
 - `POST /api/hearts/dining-hall` - Like/unlike a dining hall
 - `POST /api/hearts/menu-item` - Like/unlike a menu item
-- `GET /api/hearts/:userId` - Get user's hearts/likes
+- `GET /api/hearts/:userId` - Get user's favorites
 
 ## Development
 
@@ -97,31 +97,30 @@ A modern, interactive web application that displays Cornell University dining ha
 
 ### Data Storage
 - User data: `/app/data/users.json`
-- Hearts data: `/app/data/hearts.json`
+- User data: `/app/data/hearts.json`
 - Stored in Docker volume: `user_data`
 
 ## Usage Instructions
 
 1. **Navigation**
-   - Swipe left/right or use arrow keys to navigate between dining halls
-   - Click dots below cards to jump to specific halls
-   - Press spacebar to flip current card
+   - Browse dining halls in a simple single-column layout
+   - Use date selector to view menus for different days
+   - Use time selector to filter by currently open dining halls
 
 2. **Authentication**
    - Click profile button (top-right) to sign in
    - Enter your name to create an account
    - Device will remember you for future visits
 
-3. **Liking Items**
-   - Must be signed in to heart items
-   - Double-tap dining hall name/image to heart the dining hall
-   - Double-tap menu items to heart specific foods
-   - Hearts are saved and persist across sessions
+3. **Adding Favorites**
+   - Must be signed in to favorite items
+   - Double-tap dining halls to add them to your favorites
+   - Favorites are saved and persist across sessions
 
 4. **Sign Out**
    - Click profile button and then "Sign Out"
    - Removes your data from this device
-   - You'll need to sign in again to access hearts
+   - You'll need to sign in again to access favorites
 
 ## Contributing
 

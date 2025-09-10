@@ -22,8 +22,8 @@ class CornellDiningApp {
         console.log('[Frontend] Dining data loaded');
         this.initializeDateSelector(); // Initialize after data is loaded
         console.log('[Frontend] Date selector initialized');
-        this.renderFlashcards();
-        console.log('[Frontend] Flashcards rendered');
+        this.renderDiningHalls();
+        console.log('[Frontend] Dining halls rendered');
         console.log('[Frontend] Initialization complete');
     }
 
@@ -122,7 +122,7 @@ class CornellDiningApp {
     onTimeChange() {
         console.log('[Frontend] Time filter changed to:', this.selectedTime);
         // Re-render dining halls with time filtering
-        this.renderFlashcards();
+        this.renderDiningHalls();
     }
 
     updateDayOfWeek() {
@@ -167,7 +167,7 @@ class CornellDiningApp {
             // Reload dining data for the new date
             await this.loadDiningData();
             // Re-render the dining halls
-            this.renderFlashcards();
+            this.renderDiningHalls();
         } catch (error) {
             console.error('[Frontend] Error loading data for new date:', error);
         } finally {
@@ -222,7 +222,7 @@ class CornellDiningApp {
                 document.getElementById('profileDropdown').classList.add('hidden');
                 document.getElementById('nameInput').value = '';
                 await this.loadUserHearts();
-                this.renderFlashcards(); // Re-render to show hearts
+                this.renderDiningHalls(); // Re-render to show hearts
             }
         } catch (error) {
             console.error('Error signing in:', error);
@@ -240,7 +240,7 @@ class CornellDiningApp {
             this.userHearts = { diningHalls: [], menuItems: [] };
             this.updateUIForSignedOutUser();
             document.getElementById('profileDropdown').classList.add('hidden');
-            this.renderFlashcards(); // Re-render to hide hearts
+            this.renderDiningHalls(); // Re-render to hide hearts
         } catch (error) {
             console.error('Error signing out:', error);
         }
@@ -439,7 +439,7 @@ class CornellDiningApp {
         return menus;
     }
 
-    renderFlashcards() {
+    renderDiningHalls() {
         const list = document.getElementById('diningHallsList');
         
         if (!list) {
@@ -478,12 +478,12 @@ class CornellDiningApp {
             // Get original operating hours for this dining hall
             const operatingHours = this.getOriginalOperatingHours(hall.id);
             const hallWithHours = { ...hall, operatingHours };
-            const card = this.createFlashcard(hallWithHours, index);
+            const card = this.createDiningHallCard(hallWithHours, index);
             list.appendChild(card);
         });
     }
 
-    createFlashcard(hall, index) {
+    createDiningHallCard(hall, index) {
         const card = document.createElement('div');
         card.className = 'dining-hall-card';
         card.dataset.index = index;
@@ -778,34 +778,6 @@ class CornellDiningApp {
         return menuHTML;
     }
 
-    flipCard(card) {
-        console.log('[Frontend] Starting card flip animation');
-        this.isFlipping = true;
-        
-        const isCurrentlyFlipped = card.classList.contains('flipped');
-        console.log(`[Frontend] Card is currently ${isCurrentlyFlipped ? 'flipped (showing back)' : 'unflipped (showing front)'}`);
-        
-        card.classList.toggle('flipped');
-        
-        const newState = card.classList.contains('flipped') ? 'back (menu)' : 'front (info)';
-        console.log(`[Frontend] Card flipped to show ${newState}`);
-        
-        // Add event listeners for menu items after flip
-        setTimeout(() => {
-            const menuItems = card.querySelectorAll('.menu-item');
-            console.log(`[Frontend] Adding event listeners to ${menuItems.length} menu items`);
-            menuItems.forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    console.log('[Frontend] Menu item clicked:', item.textContent);
-                    this.handleMenuItemHeart(e, item);
-                });
-            });
-            this.isFlipping = false;
-            console.log('[Frontend] Card flip animation complete');
-        }, 300);
-    }
-
     async handleDoubleTab(e, card, hall) {
         e.stopPropagation();
         
@@ -814,11 +786,8 @@ class CornellDiningApp {
             return;
         }
 
-        const isFlipped = card.classList.contains('flipped');
-        if (!isFlipped) {
-            // Heart the dining hall
-            await this.toggleDiningHallHeart(hall.id, card);
-        }
+        // Heart the dining hall
+        await this.toggleDiningHallHeart(hall.id, card);
     }
 
     async handleMenuItemHeart(e, menuItem) {
