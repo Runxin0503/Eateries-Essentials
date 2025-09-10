@@ -567,6 +567,14 @@ class CornellDiningApp {
     }
 
     createRecommendationContent() {
+        console.log(`[Frontend] Creating recommendation content for ${this.recommendations.length} recommendations`);
+        if (this.diningHalls && this.diningHalls.length > 0) {
+            console.log(`[Frontend] Available dining halls:`, this.diningHalls.map(h => ({ id: h.id, name: h.name, type: typeof h.id })));
+        }
+        if (this.recommendations && this.recommendations.length > 0) {
+            console.log(`[Frontend] Recommendation IDs:`, this.recommendations.map(r => ({ id: r.diningHallId, type: typeof r.diningHallId })));
+        }
+
         if (!this.user) {
             return `
                 <div class="recommendation-header">
@@ -585,8 +593,17 @@ class CornellDiningApp {
         }
 
         const recommendationColumns = this.recommendations.map(rec => {
-            const hall = this.diningHalls.find(h => h.id === rec.diningHallId);
+            console.log(`[Frontend] Searching for recommendation ID: ${rec.diningHallId} (type: ${typeof rec.diningHallId})`);
+            console.log(`[Frontend] Available hall IDs:`, this.diningHalls.map(h => `${h.id}(${typeof h.id})`));
+            
+            const hall = this.diningHalls.find(h => {
+                const match = String(h.id) === String(rec.diningHallId);
+                console.log(`[Frontend] Comparing ${h.id} (${typeof h.id}) === ${rec.diningHallId} (${typeof rec.diningHallId}) -> ${match}`);
+                return match;
+            });
             const hallName = hall ? hall.name : `Dining Hall ${rec.diningHallId}`;
+            
+            console.log(`[Frontend] Final result: Looking for hall ID: ${rec.diningHallId}, found: ${hall ? hall.name : 'not found'}`);
             
             return `
                 <div class="recommendation-column">
@@ -1000,7 +1017,11 @@ class CornellDiningApp {
         const heartImage = heartIcon.querySelector('.heart-image-small');
         const isLiked = heartIcon.classList.contains('liked');
 
-        console.log(`[Frontend] Toggling menu item heart for item ${itemId}, currently ${isLiked ? 'liked' : 'not liked'}`);
+        // Get the dining hall ID from the card
+        const diningHallCard = menuItem.closest('.dining-hall-card');
+        const diningHallId = diningHallCard ? diningHallCard.dataset.hallId : 'unknown';
+
+        console.log(`[Frontend] Toggling menu item heart for item ${itemId} at dining hall ${diningHallId}, currently ${isLiked ? 'liked' : 'not liked'}`);
 
         try {
             const response = await fetch('/api/hearts/menu-item', {
@@ -1011,6 +1032,7 @@ class CornellDiningApp {
                 body: JSON.stringify({
                     userId: this.user.userId,
                     menuItemId: itemId,
+                    diningHallId: diningHallId,
                     action: isLiked ? 'unlike' : 'like'
                 })
             });
