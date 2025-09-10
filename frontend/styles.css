@@ -88,6 +88,42 @@ body {
     text-align: center;
 }
 
+.time-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.time-label {
+    color: white;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.time-selector {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.time-selector:hover {
+    background: white;
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.time-selector:focus {
+    outline: none;
+    background: white;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
 .profile-section {
     position: relative;
 }

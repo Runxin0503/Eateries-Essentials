@@ -1,11 +1,13 @@
 class CornellDiningApp {
     constructor() {
         this.diningHalls = [];
+        this.originalEateries = []; // Store original eateries data for time filtering
         this.user = null;
         this.userHearts = { diningHalls: [], menuItems: [] };
         this.deviceId = this.getOrCreateDeviceId();
         this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
         this.availableDates = []; // Will be populated from API data
+        this.selectedTime = '08:00'; // Default time
 
         this.init();
     }
@@ -39,6 +41,12 @@ class CornellDiningApp {
         document.getElementById('dateSelector').addEventListener('change', (e) => {
             this.selectedDate = e.target.value;
             this.onDateChange();
+        });
+        
+        // Time selector change event
+        document.getElementById('timeSelector').addEventListener('change', (e) => {
+            this.selectedTime = e.target.value;
+            this.onTimeChange();
         });
         
         // Profile dropdown
@@ -104,8 +112,17 @@ class CornellDiningApp {
             }
         }
         
+        // Initialize time selector
+        document.getElementById('timeSelector').value = this.selectedTime;
+        
         // Update day of week display
         this.updateDayOfWeek();
+    }
+
+    onTimeChange() {
+        console.log('[Frontend] Time filter changed to:', this.selectedTime);
+        // Re-render dining halls with time filtering
+        this.renderFlashcards();
     }
 
     updateDayOfWeek() {
@@ -296,12 +313,14 @@ class CornellDiningApp {
             // Extract available dates from the data
             this.extractAvailableDates(eateries);
             
-            // Process and filter dining halls
-            this.diningHalls = eateries.filter(eatery => {
+            // Store original eateries data for time filtering
+            this.originalEateries = eateries.filter(eatery => {
                 const hasHours = eatery.operatingHours && eatery.operatingHours.length > 0;
-                console.log(`[Frontend] Processing ${eatery.name}: hasHours=${hasHours}`);
                 return hasHours;
-            }).map(eatery => {
+            });
+            
+            // Process and filter dining halls
+            this.diningHalls = this.originalEateries.map(eatery => {
                 const processed = {
                     id: eatery.id,
                     name: eatery.name,
@@ -435,9 +454,31 @@ class CornellDiningApp {
             return;
         }
 
-        // Create all dining hall cards
-        this.diningHalls.forEach((hall, index) => {
-            const card = this.createFlashcard(hall, index);
+        // Filter dining halls based on time selection
+        const filteredHalls = this.diningHalls.filter(hall => {
+            // Get original operating hours for this dining hall
+            const operatingHours = this.getOriginalOperatingHours(hall.id);
+            const hallWithHours = { ...hall, operatingHours };
+            return this.isDiningHallOpenAtTime(hallWithHours);
+        });
+
+        if (filteredHalls.length === 0) {
+            // Convert 24-hour time to 12-hour format for display
+            const timeDisplay = this.formatTimeForDisplay(this.selectedTime);
+            list.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: #666;">
+                    No dining halls are open at ${timeDisplay}
+                </div>
+            `;
+            return;
+        }
+
+        // Create filtered dining hall cards with operating hours attached
+        filteredHalls.forEach((hall, index) => {
+            // Get original operating hours for this dining hall
+            const operatingHours = this.getOriginalOperatingHours(hall.id);
+            const hallWithHours = { ...hall, operatingHours };
+            const card = this.createFlashcard(hallWithHours, index);
             list.appendChild(card);
         });
     }
@@ -451,16 +492,25 @@ class CornellDiningApp {
         const isHallLiked = this.user && this.userHearts.diningHalls.includes(hall.id);
         
         // Determine if dining hall is open or closed
-        const isOpen = this.isDiningHallOpen(hall);
+        // When time filtering is active (selectedTime is set), use time-specific logic
+        const isOpen = this.isDiningHallOpenAtTime(hall);
         const statusClass = isOpen ? 'open' : 'closed';
-        const statusText = isOpen ? 'Open' : 'Closed';
+        
+        let statusText = 'Closed';
+        if (isOpen) {
+            const endTime = this.getDiningHallEndTime(hall);
+            if (endTime) {
+                statusText = `Open until ${endTime}`;
+            } else {
+                statusText = 'Open';
+            }
+        }
 
         card.innerHTML = `
             <div class="dining-hall-header">
                 <div class="dining-hall-info">
                     <h2 class="dining-hall-name">${hall.name}</h2>
                     <div class="dining-hall-status ${statusClass}">${statusText}</div>
-                    <p class="dining-hall-hours">${hall.hours}</p>
                     <p class="dining-hall-description">${hall.description}</p>
                 </div>
                 <div class="heart-icon ${isHallLiked ? 'liked' : ''}">
@@ -496,6 +546,136 @@ class CornellDiningApp {
         
         // If status is "EVENTS", it's likely open
         return selectedDateSchedule.status === 'EVENTS' && selectedDateSchedule.events && selectedDateSchedule.events.length > 0;
+    }
+
+    isDiningHallOpenAtTime(hall) {
+        // Check if the dining hall is open at the specified time
+        if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+            return false;
+        }
+        
+        // Look for selected date's schedule
+        const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
+        
+        if (!selectedDateSchedule || !selectedDateSchedule.events) {
+            return false;
+        }
+        
+        // Convert selected time to minutes for easier comparison
+        const selectedMinutes = this.timeToMinutes(this.selectedTime);
+        
+        // Check if any event contains the specified time
+        return selectedDateSchedule.events.some(event => {
+            if (!event.start || !event.end) return false;
+            
+            // Parse event times (format like "8:00am" or "11:00pm")
+            const eventStartMinutes = this.parseEventTime(event.start);
+            const eventEndMinutes = this.parseEventTime(event.end);
+            
+            if (eventStartMinutes === null || eventEndMinutes === null) return false;
+            
+            // Handle times that span across midnight (e.g., 8:00am to 2:00am next day)
+            if (eventEndMinutes < eventStartMinutes) {
+                // Time spans across midnight
+                // Check if selected time is either:
+                // 1. After start time (same day), OR
+                // 2. Before end time (next day)
+                return selectedMinutes >= eventStartMinutes || selectedMinutes <= eventEndMinutes;
+            } else {
+                // Normal time range (no midnight crossing)
+                return selectedMinutes >= eventStartMinutes && selectedMinutes <= eventEndMinutes;
+            }
+        });
+    }
+
+    timeToMinutes(timeString) {
+        // Convert "HH:MM" format to minutes since midnight
+        const [hours, minutes] = timeString.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+
+    formatTimeForDisplay(timeString) {
+        // Convert "HH:MM" format to 12-hour format for display
+        const [hours, minutes] = timeString.split(':').map(Number);
+        let displayHours = hours;
+        let period = 'AM';
+        
+        if (hours === 0) {
+            displayHours = 12;
+            period = 'AM';
+        } else if (hours === 12) {
+            displayHours = 12;
+            period = 'PM';
+        } else if (hours > 12) {
+            displayHours = hours - 12;
+            period = 'PM';
+        }
+        
+        const minuteStr = minutes === 0 ? '' : `:${minutes.toString().padStart(2, '0')}`;
+        return `${displayHours}${minuteStr} ${period}`;
+    }
+
+    getOriginalOperatingHours(eateryId) {
+        const originalEatery = this.originalEateries.find(eatery => eatery.id === eateryId);
+        return originalEatery ? originalEatery.operatingHours : [];
+    }
+
+    parseEventTime(timeString) {
+        // Parse times like "8:00am", "11:00pm", "12:30pm" to minutes since midnight
+        const match = timeString.match(/^(\d{1,2}):(\d{2})(am|pm)$/i);
+        if (!match) return null;
+        
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const period = match[3].toLowerCase();
+        
+        // Convert to 24-hour format
+        if (period === 'pm' && hours !== 12) {
+            hours += 12;
+        } else if (period === 'am' && hours === 12) {
+            hours = 0;
+        }
+        
+        return hours * 60 + minutes;
+    }
+
+    getDiningHallEndTime(hall) {
+        // Get the end time of the current event for the dining hall at the selected time
+        if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+            return null;
+        }
+        
+        // Look for selected date's schedule
+        const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
+        
+        if (!selectedDateSchedule || !selectedDateSchedule.events) {
+            return null;
+        }
+        
+        // Convert selected time to minutes for easier comparison
+        const selectedMinutes = this.timeToMinutes(this.selectedTime);
+        
+        // Find the event that contains the specified time
+        const currentEvent = selectedDateSchedule.events.find(event => {
+            if (!event.start || !event.end) return false;
+            
+            // Parse event times (format like "8:00am" or "11:00pm")
+            const eventStartMinutes = this.parseEventTime(event.start);
+            const eventEndMinutes = this.parseEventTime(event.end);
+            
+            if (eventStartMinutes === null || eventEndMinutes === null) return false;
+            
+            // Handle times that span across midnight (e.g., 8:00am to 2:00am next day)
+            if (eventEndMinutes < eventStartMinutes) {
+                // Time spans across midnight
+                return selectedMinutes >= eventStartMinutes || selectedMinutes <= eventEndMinutes;
+            } else {
+                // Normal time range (no midnight crossing)
+                return selectedMinutes >= eventStartMinutes && selectedMinutes <= eventEndMinutes;
+            }
+        });
+        
+        return currentEvent ? currentEvent.end : null;
     }
 
     createMenuContent(hall) {
