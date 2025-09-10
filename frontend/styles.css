@@ -214,8 +214,8 @@ body {
 }
 
 .dining-halls-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 1.5rem;
     margin-bottom: 2rem;
 }
@@ -228,6 +228,8 @@ body {
     transition: all 0.3s ease;
     cursor: pointer;
     border: 2px solid transparent;
+    width: 100%;
+    max-width: none;
 }
 
 .dining-hall-card:hover {
@@ -335,15 +337,52 @@ body {
 
 .meal-section {
     margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.meal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.meal-header:hover {
+    background: #e9ecef;
 }
 
 .meal-title {
     font-size: 1rem;
     font-weight: 600;
     color: #667eea;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.25rem;
-    border-bottom: 2px solid #667eea;
+    margin: 0;
+}
+
+.expand-icon {
+    transition: transform 0.3s ease;
+    color: #667eea;
+    font-size: 0.8rem;
+}
+
+.meal-section.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.meal-items {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    padding: 0 1rem;
+}
+
+.meal-section.expanded .meal-items {
+    max-height: 1000px;
+    padding: 1rem;
 }
 
 .category-title {

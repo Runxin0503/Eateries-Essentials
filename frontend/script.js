@@ -1,13 +1,9 @@
 class CornellDiningApp {
     constructor() {
-        this.currentCardIndex = 0;
         this.diningHalls = [];
         this.user = null;
         this.userHearts = { diningHalls: [], menuItems: [] };
         this.deviceId = this.getOrCreateDeviceId();
-        this.startX = null;
-        this.startY = null;
-        this.isFlipping = false;
 
         this.init();
     }
@@ -78,38 +74,6 @@ class CornellDiningApp {
                 this.signIn();
             }
         });
-
-        // Keyboard navigation
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
-                this.previousCard();
-            } else if (e.key === 'ArrowRight') {
-                this.nextCard();
-            } else if (e.key === ' ') {
-                e.preventDefault();
-                this.flipCurrentCard();
-            }
-        });
-
-        // Setup touch and mouse events after DOM is ready
-        setTimeout(() => {
-            this.setupSwipeEvents();
-        }, 100);
-    }
-
-    setupSwipeEvents() {
-        // Touch events for swiping on the container
-        const container = document.querySelector('.flashcard-container');
-        if (container) {
-            container.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-            container.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-            container.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
-            
-            // Mouse events for desktop on container
-            container.addEventListener('mousedown', this.handleMouseDown.bind(this));
-            container.addEventListener('mousemove', this.handleMouseMove.bind(this));
-            container.addEventListener('mouseup', this.handleMouseUp.bind(this));
-        }
     }
 
     async checkAuth() {
@@ -313,16 +277,28 @@ class CornellDiningApp {
         }
         
         operatingHours.forEach(period => {
-            if (period.menu && Array.isArray(period.menu) && period.menu.length > 0) {
-                const mealType = (period.summary || 'meal').toLowerCase();
-                menus[mealType] = period.menu.map(category => ({
-                    category: category.category || 'Unknown',
-                    items: (category.items || []).map(item => ({
-                        id: `${period.summary || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
-                        name: item.item || 'Unknown Item',
-                        healthy: item.healthy || false
-                    }))
-                }));
+            if (period.events && Array.isArray(period.events)) {
+                period.events.forEach(event => {
+                    if (event.menu && Array.isArray(event.menu) && event.menu.length > 0) {
+                        const mealType = (event.descr || 'meal').toLowerCase();
+                        
+                        if (!menus[mealType]) {
+                            menus[mealType] = [];
+                        }
+                        
+                        // Add all categories from this event's menu
+                        event.menu.forEach(category => {
+                            menus[mealType].push({
+                                category: category.category || 'Unknown',
+                                items: (category.items || []).map(item => ({
+                                    id: `${event.descr || 'meal'}_${category.category || 'unknown'}_${item.item || 'item'}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
+                                    name: item.item || 'Unknown Item',
+                                    healthy: item.healthy || false
+                                }))
+                            });
+                        });
+                    }
+                });
             }
         });
 
@@ -330,64 +306,45 @@ class CornellDiningApp {
     }
 
     renderFlashcards() {
-        console.log('[Frontend] Rendering flashcards for', this.diningHalls.length, 'dining halls');
-        const stack = document.getElementById('flashcardStack');
-        const dots = document.getElementById('navigationDots');
+        const list = document.getElementById('diningHallsList');
         
-        if (!stack || !dots) {
-            console.error('[Frontend] Could not find flashcard stack or navigation dots elements');
+        if (!list) {
+            console.error('[Frontend] Could not find dining halls list element');
             return;
         }
         
-        stack.innerHTML = '';
-        dots.innerHTML = '';
+        list.innerHTML = '';
 
         if (this.diningHalls.length === 0) {
-            console.log('[Frontend] No dining halls to render');
-            stack.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">No dining halls available</div>';
+            list.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">No dining halls available</div>';
             return;
         }
 
-        // Create all flashcards but only show the current one
+        // Create all dining hall cards
         this.diningHalls.forEach((hall, index) => {
-            console.log(`[Frontend] Creating flashcard ${index + 1}/${this.diningHalls.length}: ${hall.name}`);
             const card = this.createFlashcard(hall, index);
-            
-            // Only show the current card, hide others
-            if (index === this.currentCardIndex) {
-                card.style.display = 'block';
-                card.style.zIndex = '100';
-                card.style.transform = 'translateX(0) scale(1)';
-                card.style.opacity = '1';
-            } else {
-                card.style.display = 'none';
-            }
-            
-            stack.appendChild(card);
-
-            // Create navigation dot
-            const dot = document.createElement('div');
-            dot.className = `nav-dot ${index === this.currentCardIndex ? 'active' : ''}`;
-            dot.addEventListener('click', () => this.goToCard(index));
-            dots.appendChild(dot);
+            list.appendChild(card);
         });
-        
-        console.log('[Frontend] Flashcards rendered successfully');
     }
 
     createFlashcard(hall, index) {
         const card = document.createElement('div');
-        card.className = 'flashcard';
+        card.className = 'dining-hall-card';
         card.dataset.index = index;
         card.dataset.hallId = hall.id;
 
         const isHallLiked = this.user && this.userHearts.diningHalls.includes(hall.id);
+        
+        // Determine if dining hall is open or closed
+        const isOpen = this.isDiningHallOpen(hall);
+        const statusClass = isOpen ? 'open' : 'closed';
+        const statusText = isOpen ? 'Open' : 'Closed';
 
         card.innerHTML = `
-            <div class="flashcard-front">
-                <div class="dining-hall-image">🍽️</div>
+            <div class="dining-hall-header">
                 <div class="dining-hall-info">
                     <h2 class="dining-hall-name">${hall.name}</h2>
+                    <div class="dining-hall-status ${statusClass}">${statusText}</div>
                     <p class="dining-hall-hours">${hall.hours}</p>
                     <p class="dining-hall-description">${hall.description}</p>
                 </div>
@@ -395,43 +352,36 @@ class CornellDiningApp {
                     <img src="${isHallLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image">
                 </div>
             </div>
-            <div class="flashcard-back">
+            <div class="menu-content">
                 ${this.createMenuContent(hall)}
             </div>
         `;
 
-        // Handle clicks with proper single/double tap detection
-        let clickCount = 0;
-        let clickTimer = null;
-        
-        card.addEventListener('click', (e) => {
-            console.log('[Frontend] Card clicked, clickCount:', clickCount);
-            clickCount++;
-            
-            if (clickCount === 1) {
-                clickTimer = setTimeout(() => {
-                    // Single click - flip card
-                    console.log('[Frontend] Processing single click - attempting to flip card');
-                    if (!this.isFlipping) {
-                        console.log('[Frontend] Card not currently flipping, calling flipCard');
-                        this.flipCard(card);
-                    } else {
-                        console.log('[Frontend] Card is currently flipping, skipping flip');
-                    }
-                    clickCount = 0;
-                }, 250);
-            } else if (clickCount === 2) {
-                // Double click - handle heart
-                console.log('[Frontend] Processing double click - handling heart');
-                clearTimeout(clickTimer);
-                clickCount = 0;
-                e.preventDefault();
-                e.stopPropagation();
-                this.handleDoubleTab(e, card, hall);
-            }
+        // Add double-click handler for heart
+        card.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            this.handleDoubleTab(e, card, hall);
         });
 
         return card;
+    }
+
+    isDiningHallOpen(hall) {
+        // Check if the dining hall has any events today that indicate it's open
+        if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+            return false;
+        }
+        
+        // Look for today's schedule
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+        const todaySchedule = hall.operatingHours.find(schedule => schedule.date === today);
+        
+        if (!todaySchedule) {
+            return false;
+        }
+        
+        // If status is "EVENTS", it's likely open
+        return todaySchedule.status === 'EVENTS' && todaySchedule.events && todaySchedule.events.length > 0;
     }
 
     createMenuContent(hall) {
@@ -446,35 +396,88 @@ class CornellDiningApp {
             `;
         }
 
-        let menuHTML = `
-            <div class="menu-content">
-                <h3 class="menu-title">Menu for ${hall.name}</h3>
-        `;
+        let menuHTML = `<div class="menu-content">`;
 
+        // Organize meals by common meal types
+        const mealOrder = ['breakfast', 'brunch', 'lunch', 'dinner', 'late night'];
+        const organizedMeals = {};
+        
+        // Group menus by meal type
         Object.entries(hall.menus).forEach(([mealType, categories]) => {
-            menuHTML += `
-                <div class="meal-section">
-                    <h4 class="meal-title">${mealType.charAt(0).toUpperCase() + mealType.slice(1)}</h4>
-            `;
+            const normalizedType = mealType.toLowerCase();
+            organizedMeals[normalizedType] = categories;
+        });
 
-            categories.forEach(category => {
-                if (category.items && category.items.length > 0) {
-                    menuHTML += `<h5 style="font-weight: 500; color: #555; margin: 0.5rem 0;">${category.category}</h5>`;
-                    category.items.forEach(item => {
-                        const isItemLiked = this.user && this.userHearts.menuItems.includes(item.id);
-                        menuHTML += `
-                            <div class="menu-item" data-item-id="${item.id}">
-                                <span class="menu-item-name">${item.name}</span>
-                                <span class="menu-item-heart ${isItemLiked ? 'liked' : ''}">
-                                    <img src="${isItemLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image-small">
-                                </span>
-                            </div>
-                        `;
-                    });
-                }
-            });
+        // Display meals in order
+        mealOrder.forEach(mealType => {
+            if (organizedMeals[mealType]) {
+                menuHTML += `
+                    <div class="meal-section">
+                        <div class="meal-header" onclick="this.parentElement.classList.toggle('expanded')">
+                            <h4 class="meal-title">${mealType.charAt(0).toUpperCase() + mealType.slice(1)}</h4>
+                            <span class="expand-icon">▼</span>
+                        </div>
+                        <div class="meal-items">
+                `;
 
-            menuHTML += `</div>`;
+                organizedMeals[mealType].forEach(category => {
+                    if (category.items && category.items.length > 0) {
+                        menuHTML += `<h5 class="category-title">${category.category}</h5>`;
+                        category.items.forEach(item => {
+                            const isItemLiked = this.user && this.userHearts.menuItems.includes(item.id);
+                            menuHTML += `
+                                <div class="menu-item" data-item-id="${item.id}">
+                                    <span class="menu-item-name">${item.name}</span>
+                                    <span class="menu-item-heart ${isItemLiked ? 'liked' : ''}">
+                                        <img src="${isItemLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image-small">
+                                    </span>
+                                </div>
+                            `;
+                        });
+                    }
+                });
+
+                menuHTML += `
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        // Display any remaining meal types that weren't in the standard order
+        Object.entries(organizedMeals).forEach(([mealType, categories]) => {
+            if (!mealOrder.includes(mealType)) {
+                menuHTML += `
+                    <div class="meal-section">
+                        <div class="meal-header" onclick="this.parentElement.classList.toggle('expanded')">
+                            <h4 class="meal-title">${mealType.charAt(0).toUpperCase() + mealType.slice(1)}</h4>
+                            <span class="expand-icon">▼</span>
+                        </div>
+                        <div class="meal-items">
+                `;
+
+                categories.forEach(category => {
+                    if (category.items && category.items.length > 0) {
+                        menuHTML += `<h5 class="category-title">${category.category}</h5>`;
+                        category.items.forEach(item => {
+                            const isItemLiked = this.user && this.userHearts.menuItems.includes(item.id);
+                            menuHTML += `
+                                <div class="menu-item" data-item-id="${item.id}">
+                                    <span class="menu-item-name">${item.name}</span>
+                                    <span class="menu-item-heart ${isItemLiked ? 'liked' : ''}">
+                                        <img src="${isItemLiked ? 'heart.png' : 'heart-transparent.png'}" alt="Heart" class="heart-image-small">
+                                    </span>
+                                </div>
+                            `;
+                        });
+                    }
+                });
+
+                menuHTML += `
+                        </div>
+                    </div>
+                `;
+            }
         });
 
         menuHTML += `</div>`;
@@ -507,13 +510,6 @@ class CornellDiningApp {
             this.isFlipping = false;
             console.log('[Frontend] Card flip animation complete');
         }, 300);
-    }
-
-    flipCurrentCard() {
-        const currentCard = document.querySelector(`.flashcard[data-index="${this.currentCardIndex}"]`);
-        if (currentCard) {
-            this.flipCard(currentCard);
-        }
     }
 
     async handleDoubleTab(e, card, hall) {
@@ -633,147 +629,6 @@ class CornellDiningApp {
         document.getElementById('authModal').classList.remove('hidden');
     }
 
-    // Touch and mouse event handlers for swiping
-    handleTouchStart(e) {
-        // Only handle if we're not inside a flashcard (to avoid interfering with flip)
-        if (e.target.closest('.flashcard')) {
-            return;
-        }
-        this.startX = e.touches[0].clientX;
-        this.startY = e.touches[0].clientY;
-    }
-
-    handleTouchMove(e) {
-        if (!this.startX || !this.startY) return;
-        
-        const deltaX = Math.abs(e.touches[0].clientX - this.startX);
-        const deltaY = Math.abs(e.touches[0].clientY - this.startY);
-        
-        if (deltaX > deltaY && deltaX > 10) {
-            e.preventDefault(); // Prevent scrolling when swiping horizontally
-        }
-    }
-
-    handleTouchEnd(e) {
-        if (!this.startX || !this.startY) return;
-
-        const endX = e.changedTouches[0].clientX;
-        const endY = e.changedTouches[0].clientY;
-        const deltaX = endX - this.startX;
-        const deltaY = Math.abs(endY - this.startY);
-
-        // Only process horizontal swipes with sufficient distance
-        if (Math.abs(deltaX) > 50 && deltaY < 100) {
-            if (deltaX > 0) {
-                this.previousCard();
-            } else {
-                this.nextCard();
-            }
-        }
-
-        this.startX = null;
-        this.startY = null;
-    }
-
-    handleMouseDown(e) {
-        // Only handle left click on container or its children
-        if (e.button !== 0) return;
-        
-        // Check if we're clicking on the container or a child element
-        const container = document.querySelector('.flashcard-container');
-        if (!container || (!container.contains(e.target) && e.target !== container)) return;
-        
-        this.isMouseDown = true;
-        this.startX = e.clientX;
-        this.startY = e.clientY;
-        this.startTime = Date.now();
-        e.preventDefault();
-    }
-
-    handleMouseMove(e) {
-        if (!this.isMouseDown) return;
-        
-        this.currentX = e.clientX;
-        this.currentY = e.clientY;
-        e.preventDefault();
-    }
-
-    handleMouseUp(e) {
-        if (!this.isMouseDown) return;
-        
-        this.isMouseDown = false;
-        const endTime = Date.now();
-        const deltaX = this.currentX - this.startX;
-        const deltaY = this.currentY - this.startY;
-        const deltaTime = endTime - this.startTime;
-        
-        // Check if we clicked on a flashcard - if so, let the card handle the click
-        if (e.target.closest('.flashcard')) {
-            console.log('[Frontend] Click detected on flashcard, letting card handle the event');
-            return; // Don't interfere with card's own click handling
-        }
-        
-        // Check for swipe gesture vs click on container background
-        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) && deltaTime < 500) {
-            console.log('[Frontend] Swipe detected on container background');
-            if (deltaX > 0) {
-                this.previousCard();
-            } else {
-                this.nextCard();
-            }
-        } else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
-            console.log('[Frontend] Click detected on container background, flipping current card');
-            this.flipCurrentCard();
-        }
-        
-        e.preventDefault();
-    }
-
-    nextCard() {
-        if (this.currentCardIndex < this.diningHalls.length - 1) {
-            this.currentCardIndex++;
-            this.updateCardPositions();
-            this.updateNavigationDots();
-        }
-    }
-
-    previousCard() {
-        if (this.currentCardIndex > 0) {
-            this.currentCardIndex--;
-            this.updateCardPositions();
-            this.updateNavigationDots();
-        }
-    }
-
-    goToCard(index) {
-        if (index >= 0 && index < this.diningHalls.length) {
-            this.currentCardIndex = index;
-            this.updateCardPositions();
-            this.updateNavigationDots();
-        }
-    }
-
-    updateCardPositions() {
-        const cards = document.querySelectorAll('.flashcard');
-        cards.forEach((card, index) => {
-            const cardIndex = parseInt(card.dataset.index);
-            if (cardIndex === this.currentCardIndex) {
-                card.style.display = 'block';
-                card.style.zIndex = '100';
-                card.style.transform = 'translateX(0) scale(1)';
-                card.style.opacity = '1';
-            } else {
-                card.style.display = 'none';
-            }
-        });
-    }
-
-    updateNavigationDots() {
-        const dots = document.querySelectorAll('.nav-dot');
-        dots.forEach((dot, index) => {
-            dot.classList.toggle('active', index === this.currentCardIndex);
-        });
-    }
 }
 
 // Initialize the app when the page loads
