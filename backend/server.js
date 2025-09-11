@@ -314,6 +314,31 @@ app.get('/api/hearts/:userId', async (req, res) => {
     }
 });
 
+// Get user's detailed heart records (for time-based filtering)
+app.get('/api/hearts/:userId/detailed', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const heartsFile = path.join(DATA_DIR, 'hearts.json');
+        
+        if (!(await fs.pathExists(heartsFile))) {
+            return res.json({ diningHallHearts: [], menuItemHearts: [] });
+        }
+
+        const hearts = await fs.readJson(heartsFile);
+        
+        const userDiningHearts = (hearts.diningHallHearts || []).filter(heart => heart.userId === userId);
+        const userMenuHearts = (hearts.menuItemHearts || []).filter(heart => heart.userId === userId);
+        
+        res.json({
+            diningHallHearts: userDiningHearts,
+            menuItemHearts: userMenuHearts
+        });
+    } catch (error) {
+        console.error('Error getting detailed hearts:', error.message);
+        res.status(500).json({ error: 'Failed to get detailed hearts' });
+    }
+});
+
 // Get dining hall recommendations for a user
 app.get('/api/recommendations/:userId', async (req, res) => {
     try {

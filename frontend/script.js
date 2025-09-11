@@ -4,6 +4,7 @@ class CornellDiningApp {
         this.originalEateries = []; // Store original eateries data for time filtering
         this.user = null;
         this.userHearts = { diningHalls: [], menuItems: [] };
+        this.userDetailedHearts = { diningHallHearts: [], menuItemHearts: [] };
         this.recommendations = [];
         this.deviceId = this.getOrCreateDeviceId();
         this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
@@ -244,6 +245,7 @@ class CornellDiningApp {
 
             this.user = null;
             this.userHearts = { diningHalls: [], menuItems: [] };
+            this.userDetailedHearts = { diningHallHearts: [], menuItemHearts: [] };
             this.updateUIForSignedOutUser();
             document.getElementById('profileDropdown').classList.add('hidden');
             this.renderDiningHalls(); // Re-render to hide hearts
@@ -273,11 +275,96 @@ class CornellDiningApp {
         if (!this.user) return;
 
         try {
-            const response = await fetch(`/api/hearts/${this.user.userId}`);
-            const data = await response.json();
-            this.userHearts = data;
+            // Load both simple hearts (for compatibility) and detailed hearts
+            const [simpleResponse, detailedResponse] = await Promise.all([
+                fetch(`/api/hearts/${this.user.userId}`),
+                fetch(`/api/hearts/${this.user.userId}/detailed`)
+            ]);
+            
+            const simpleData = await simpleResponse.json();
+            const detailedData = await detailedResponse.json();
+            
+            this.userHearts = simpleData;
+            this.userDetailedHearts = detailedData;
+            
+            console.log('[Frontend] Loaded detailed hearts:', detailedData);
         } catch (error) {
             console.error('Error loading user hearts:', error);
+        }
+    }
+
+    // Get hearts that should be displayed for the current viewing time
+    getVisibleHearts() {
+        if (!this.userDetailedHearts || !this.userDetailedHearts.diningHallHearts) {
+            return [];
+        }
+
+        const currentTime = this.getCurrentViewingTime();
+        const currentDay = new Date().getDay(); // Always use current day since we removed day selector
+        
+        return this.userDetailedHearts.diningHallHearts.filter(heart => {
+            // Check if this heart should be visible at the current viewing time
+            return this.isHeartVisibleAtTime(heart, currentTime, currentDay);
+        }).map(heart => heart.diningHallId);
+    }
+
+    getCurrentViewingTime() {
+        if (this.selectedTime === 'now') {
+            const now = new Date();
+            return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        }
+        return this.selectedTime;
+    }
+
+    isHeartVisibleAtTime(heart, viewingTime, viewingDay) {
+        // Find the dining hall this heart belongs to
+        const diningHall = this.diningHalls.find(hall => hall.id === heart.diningHallId);
+        if (!diningHall) return false;
+
+        // Get operating hours for the selected date
+        const operatingHours = this.getOriginalOperatingHours(heart.diningHallId);
+        if (!operatingHours || !Array.isArray(operatingHours)) return false;
+
+        const selectedDateSchedule = operatingHours.find(schedule => schedule.date === this.selectedDate);
+        if (!selectedDateSchedule || !selectedDateSchedule.events) return false;
+
+        // Convert times to minutes for comparison
+        const heartTimeMinutes = this.timeToMinutes(heart.timeOfDay);
+        const viewingTimeMinutes = this.timeToMinutes(viewingTime);
+
+        // Find which event the heart was created during
+        const heartEvent = selectedDateSchedule.events.find(event => {
+            if (!event.start || !event.end) return false;
+            
+            const eventStartMinutes = this.parseEventTime(event.start);
+            const eventEndMinutes = this.parseEventTime(event.end);
+            
+            if (eventStartMinutes === null || eventEndMinutes === null) return false;
+            
+            // Check if heart was created during this event
+            if (eventEndMinutes < eventStartMinutes) {
+                // Event spans midnight
+                return heartTimeMinutes >= eventStartMinutes || heartTimeMinutes <= eventEndMinutes;
+            } else {
+                // Normal event
+                return heartTimeMinutes >= eventStartMinutes && heartTimeMinutes <= eventEndMinutes;
+            }
+        });
+
+        if (!heartEvent) return false; // Heart wasn't created during any event
+
+        // Check if current viewing time is during the same event
+        const eventStartMinutes = this.parseEventTime(heartEvent.start);
+        const eventEndMinutes = this.parseEventTime(heartEvent.end);
+        
+        if (eventStartMinutes === null || eventEndMinutes === null) return false;
+        
+        if (eventEndMinutes < eventStartMinutes) {
+            // Event spans midnight
+            return viewingTimeMinutes >= eventStartMinutes || viewingTimeMinutes <= eventEndMinutes;
+        } else {
+            // Normal event
+            return viewingTimeMinutes >= eventStartMinutes && viewingTimeMinutes <= eventEndMinutes;
         }
     }
 
@@ -675,7 +762,9 @@ class CornellDiningApp {
         card.dataset.index = index;
         card.dataset.hallId = hall.id;
 
-        const isHallLiked = this.user && this.userHearts.diningHalls.includes(hall.id);
+        // Use time-filtered hearts instead of all hearts
+        const visibleHearts = this.getVisibleHearts();
+        const isHallLiked = this.user && visibleHearts.includes(hall.id);
         
         // Determine if dining hall is open or closed
         // When time filtering is active (selectedTime is set), use time-specific logic
