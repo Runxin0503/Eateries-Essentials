@@ -746,7 +746,7 @@ function combineRecommendations(diningHallProbs, menuItemProbs, alpha, beta) {
     return combined;
 }
 
-function getSampleRecommendations() {
+function getSampleRecommendations() { 
     const sampleHalls = [
         { diningHallId: 1, confidence: 0.7, reason: 'Popular choice for this time' },
         { diningHallId: 2, confidence: 0.6, reason: 'Great variety available' },
