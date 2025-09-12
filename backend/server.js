@@ -498,23 +498,38 @@ async function generateRecommendations(userId, time, day) {
     console.log(`[${new Date().toISOString()}] [KNN] Starting time-based kNN recommendation for user ${userId}`);
     
     const heartsFile = path.join(DATA_DIR, 'hearts.json');
+    const dailyHeartsFile = path.join(DATA_DIR, 'daily_hearts.json');
     
-    if (!(await fs.pathExists(heartsFile))) {
-        console.log(`[${new Date().toISOString()}] [KNN] No hearts file found, returning sample recommendations`);
-        return getSampleRecommendations();
+    // Load historical KNN heart data
+    let knnDiningHallHearts = [];
+    let knnMenuItemHearts = [];
+    
+    if (await fs.pathExists(heartsFile)) {
+        const hearts = await fs.readJson(heartsFile);
+        knnDiningHallHearts = hearts.knnDiningHallHearts || [];
+        knnMenuItemHearts = hearts.knnMenuItemHearts || [];
     }
-
-    const hearts = await fs.readJson(heartsFile);
     
-    // Use KNN data structures (historical data, not daily data)
-    const diningHallHearts = hearts.knnDiningHallHearts || [];
-    const menuItemHearts = hearts.knnMenuItemHearts || [];
+    // Load today's daily heart data
+    let dailyDiningHallHearts = [];
+    let dailyMenuItemHearts = [];
     
-    console.log(`[${new Date().toISOString()}] [KNN] Loaded ${diningHallHearts.length} dining hall hearts and ${menuItemHearts.length} menu item hearts from KNN storage`);
+    if (await fs.pathExists(dailyHeartsFile)) {
+        const dailyHearts = await fs.readJson(dailyHeartsFile);
+        dailyDiningHallHearts = dailyHearts.dailyDiningHallHearts || [];
+        dailyMenuItemHearts = dailyHearts.dailyMenuItemHearts || [];
+    }
     
-    if (diningHallHearts.length === 0 && menuItemHearts.length === 0) {
-        console.log(`[${new Date().toISOString()}] [KNN] No KNN heart data available, returning sample recommendations`);
-        return getSampleRecommendations();
+    // Combine historical and daily heart data
+    const combinedDiningHallHearts = [...knnDiningHallHearts, ...dailyDiningHallHearts];
+    const combinedMenuItemHearts = [...knnMenuItemHearts, ...dailyMenuItemHearts];
+    
+    console.log(`[${new Date().toISOString()}] [KNN] Loaded ${knnDiningHallHearts.length} historical + ${dailyDiningHallHearts.length} daily = ${combinedDiningHallHearts.length} total dining hall hearts`);
+    console.log(`[${new Date().toISOString()}] [KNN] Loaded ${knnMenuItemHearts.length} historical + ${dailyMenuItemHearts.length} daily = ${combinedMenuItemHearts.length} total menu item hearts`);
+    
+    if (combinedDiningHallHearts.length === 0 && combinedMenuItemHearts.length === 0) {
+        console.log(`[${new Date().toISOString()}] [KNN] No heart data available (historical + daily), returning empty recommendations`);
+        return [];
     }
 
     const targetDayOfWeek = parseInt(day);
@@ -523,15 +538,15 @@ async function generateRecommendations(userId, time, day) {
     
     console.log(`[${new Date().toISOString()}] [KNN] Target vector: [day=${targetDayOfWeek}, time=${targetTime} (${targetVector[1]} minutes)]`);
 
-    // Get user's hearts (training data)
-    const userDiningHearts = diningHallHearts.filter(h => h.userId === userId);
-    const userMenuHearts = menuItemHearts.filter(h => h.userId === userId);
+    // Get user's hearts from combined data (training data)
+    const userDiningHearts = combinedDiningHallHearts.filter(h => h.userId === userId);
+    const userMenuHearts = combinedMenuItemHearts.filter(h => h.userId === userId);
     
-    console.log(`[${new Date().toISOString()}] [KNN] User has ${userDiningHearts.length} dining hall hearts and ${userMenuHearts.length} menu item hearts`);
+    console.log(`[${new Date().toISOString()}] [KNN] User has ${userDiningHearts.length} dining hall hearts and ${userMenuHearts.length} menu item hearts (combined historical + daily)`);
     
     if (userDiningHearts.length === 0 && userMenuHearts.length === 0) {
-        console.log(`[${new Date().toISOString()}] [KNN] User has no hearts, returning sample recommendations`);
-        return getSampleRecommendations();
+        console.log(`[${new Date().toISOString()}] [KNN] User has no hearts in combined data, returning empty recommendations`);
+        return [];
     }
 
     // Run time-based kNN on dining hall hearts
@@ -557,25 +572,11 @@ async function generateRecommendations(userId, time, day) {
     console.log(`[${new Date().toISOString()}] [KNN] Combined probabilities:`, 
         Object.entries(combinedScores).map(([hall, prob]) => `Hall ${hall}: ${(prob * 100).toFixed(1)}%`).join(', '));
 
-    // Sample top 3 recommendations based on probability distribution
-    const recommendations = sampleTopRecommendations(combinedScores, 3);
+    // Get top recommendations based on probability distribution (deterministic)
+    // Don't force 3 recommendations - return what we actually have
+    const recommendations = getTopRecommendationsByProbability(combinedScores, Math.min(3, Object.keys(combinedScores).length));
     
-    console.log(`[${new Date().toISOString()}] [KNN] Sampled ${recommendations.length} recommendations`);
-
-    // Fill with sample recommendations if needed
-    while (recommendations.length < 3) {
-        const sampleRecs = getSampleRecommendations();
-        const existingIds = recommendations.map(r => r.diningHallId);
-        const newRec = sampleRecs.find(r => !existingIds.includes(r.diningHallId));
-        if (newRec) {
-            newRec.confidence = Math.max(0.1, newRec.confidence - 0.3);
-            recommendations.push(newRec);
-            console.log(`[${new Date().toISOString()}] [KNN] Added sample recommendation: Hall ${newRec.diningHallId}`);
-        } else {
-            break;
-        }
-    }
-
+    console.log(`[${new Date().toISOString()}] [KNN] Selected top ${recommendations.length} recommendations by probability (no sample filling)`);
     console.log(`[${new Date().toISOString()}] [KNN] Final recommendation count: ${recommendations.length}`);
     return recommendations;
 }
@@ -683,15 +684,15 @@ function euclideanDistance(vector1, vector2) {
     return distance;
 }
 
-// Sample top recommendations based on probability distribution
-function sampleTopRecommendations(probabilities, count) {
-    console.log(`[${new Date().toISOString()}] [SAMPLING] Sampling top ${count} recommendations from ${Object.keys(probabilities).length} options`);
+// Get top recommendations based on probability distribution (deterministic)
+function getTopRecommendationsByProbability(probabilities, count) {
+    console.log(`[${new Date().toISOString()}] [TOP_RECOMMENDATIONS] Getting top ${count} recommendations from ${Object.keys(probabilities).length} options by probability`);
     
     if (Object.keys(probabilities).length === 0) {
         return [];
     }
     
-    // Sort by probability and take top recommendations
+    // Sort by probability (highest first) and take top recommendations - deterministic
     const sortedProbs = Object.entries(probabilities)
         .sort((a, b) => b[1] - a[1])
         .slice(0, count);
@@ -700,7 +701,7 @@ function sampleTopRecommendations(probabilities, count) {
         const confidence = probability;
         const reason = `${(probability * 100).toFixed(1)}% match based on your time preferences`;
         
-        console.log(`[${new Date().toISOString()}] [SAMPLING] #${index + 1}: Hall ${hallId}, probability=${(probability * 100).toFixed(1)}%`);
+        console.log(`[${new Date().toISOString()}] [TOP_RECOMMENDATIONS] #${index + 1}: Hall ${hallId}, probability=${(probability * 100).toFixed(1)}%`);
         
         return {
             diningHallId: parseInt(hallId, 10),
@@ -744,17 +745,6 @@ function combineRecommendations(diningHallProbs, menuItemProbs, alpha, beta) {
     
     console.log(`[${new Date().toISOString()}] [COMBINE] Final normalized probabilities for ${Object.keys(combined).length} halls`);
     return combined;
-}
-
-function getSampleRecommendations() { 
-    const sampleHalls = [
-        { diningHallId: 1, confidence: 0.7, reason: 'Popular choice for this time' },
-        { diningHallId: 2, confidence: 0.6, reason: 'Great variety available' },
-        { diningHallId: 3, confidence: 0.5, reason: 'Convenient location' }
-    ];
-    
-    // Shuffle and return up to 3
-    return sampleHalls.sort(() => Math.random() - 0.5).slice(0, 3);
 }
 
 app.listen(PORT, () => {
