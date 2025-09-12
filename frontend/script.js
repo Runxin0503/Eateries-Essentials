@@ -293,18 +293,18 @@ class CornellDiningApp {
         }
     }
 
-    // Get hearts that should be displayed for the current viewing time
+    // Get hearts that should be displayed (only today's hearts)
     getVisibleHearts() {
         if (!this.userDetailedHearts || !this.userDetailedHearts.diningHallHearts) {
             return [];
         }
 
-        const currentTime = this.getCurrentViewingTime();
-        const currentDay = new Date().getDay(); // Always use current day since we removed day selector
+        // Only show hearts created today - no time-based filtering needed anymore
+        const today = new Date().toISOString().split('T')[0];
         
         return this.userDetailedHearts.diningHallHearts.filter(heart => {
-            // Check if this heart should be visible at the current viewing time
-            return this.isHeartVisibleAtTime(heart, currentTime, currentDay);
+            // Only show hearts created today
+            return heart.dateCreated === today;
         }).map(heart => heart.diningHallId);
     }
 
@@ -316,56 +316,11 @@ class CornellDiningApp {
         return this.selectedTime;
     }
 
+    // This function is no longer needed with the new daily heart system, but keeping for compatibility
     isHeartVisibleAtTime(heart, viewingTime, viewingDay) {
-        // Find the dining hall this heart belongs to
-        const diningHall = this.diningHalls.find(hall => hall.id === heart.diningHallId);
-        if (!diningHall) return false;
-
-        // Get operating hours for the selected date
-        const operatingHours = this.getOriginalOperatingHours(heart.diningHallId);
-        if (!operatingHours || !Array.isArray(operatingHours)) return false;
-
-        const selectedDateSchedule = operatingHours.find(schedule => schedule.date === this.selectedDate);
-        if (!selectedDateSchedule || !selectedDateSchedule.events) return false;
-
-        // Convert times to minutes for comparison
-        const heartTimeMinutes = this.timeToMinutes(heart.timeOfDay);
-        const viewingTimeMinutes = this.timeToMinutes(viewingTime);
-
-        // Find which event the heart was created during
-        const heartEvent = selectedDateSchedule.events.find(event => {
-            if (!event.start || !event.end) return false;
-            
-            const eventStartMinutes = this.parseEventTime(event.start);
-            const eventEndMinutes = this.parseEventTime(event.end);
-            
-            if (eventStartMinutes === null || eventEndMinutes === null) return false;
-            
-            // Check if heart was created during this event
-            if (eventEndMinutes < eventStartMinutes) {
-                // Event spans midnight
-                return heartTimeMinutes >= eventStartMinutes || heartTimeMinutes <= eventEndMinutes;
-            } else {
-                // Normal event
-                return heartTimeMinutes >= eventStartMinutes && heartTimeMinutes <= eventEndMinutes;
-            }
-        });
-
-        if (!heartEvent) return false; // Heart wasn't created during any event
-
-        // Check if current viewing time is during the same event
-        const eventStartMinutes = this.parseEventTime(heartEvent.start);
-        const eventEndMinutes = this.parseEventTime(heartEvent.end);
-        
-        if (eventStartMinutes === null || eventEndMinutes === null) return false;
-        
-        if (eventEndMinutes < eventStartMinutes) {
-            // Event spans midnight
-            return viewingTimeMinutes >= eventStartMinutes || viewingTimeMinutes <= eventEndMinutes;
-        } else {
-            // Normal event
-            return viewingTimeMinutes >= eventStartMinutes && viewingTimeMinutes <= eventEndMinutes;
-        }
+        // With the new system, hearts are only visible on the day they were created
+        const today = new Date().toISOString().split('T')[0];
+        return heart.dateCreated === today;
     }
 
     async loadRecommendations() {

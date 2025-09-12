@@ -147,6 +147,86 @@ app.delete('/api/auth/signout/:deviceId', async (req, res) => {
     }
 });
 
+// Helper function to get today's date in YYYY-MM-DD format
+function getTodayDateString() {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+}
+
+// Helper function to transfer daily hearts to KNN storage and clear daily storage
+async function transferDailyHeartsToKNN() {
+    try {
+        const heartsFile = path.join(DATA_DIR, 'hearts.json');
+        const dailyHeartsFile = path.join(DATA_DIR, 'daily_hearts.json');
+        
+        if (!(await fs.pathExists(dailyHeartsFile))) {
+            return; // No daily hearts to transfer
+        }
+
+        let hearts = {};
+        let dailyHearts = {};
+        
+        if (await fs.pathExists(heartsFile)) {
+            hearts = await fs.readJson(heartsFile);
+        }
+        
+        dailyHearts = await fs.readJson(dailyHeartsFile);
+        
+        // Initialize KNN storage structures
+        if (!hearts.knnDiningHallHearts) hearts.knnDiningHallHearts = [];
+        if (!hearts.knnMenuItemHearts) hearts.knnMenuItemHearts = [];
+        
+        // Transfer daily hearts to KNN storage
+        if (dailyHearts.dailyDiningHallHearts) {
+            hearts.knnDiningHallHearts.push(...dailyHearts.dailyDiningHallHearts);
+        }
+        if (dailyHearts.dailyMenuItemHearts) {
+            hearts.knnMenuItemHearts.push(...dailyHearts.dailyMenuItemHearts);
+        }
+        
+        // Save updated KNN storage
+        await fs.writeJson(heartsFile, hearts, { spaces: 2 });
+        
+        // Clear daily hearts file
+        await fs.writeJson(dailyHeartsFile, {
+            lastTransferDate: getTodayDateString(),
+            dailyDiningHallHearts: [],
+            dailyMenuItemHearts: []
+        }, { spaces: 2 });
+        
+        console.log(`[${new Date().toISOString()}] [HEARTS-TRANSFER] Transferred daily hearts to KNN storage and cleared daily storage`);
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] [HEARTS-TRANSFER] Error transferring daily hearts:`, error);
+    }
+}
+
+// Helper function to check if we need to transfer yesterday's hearts
+async function checkAndTransferPreviousDayHearts() {
+    try {
+        const dailyHeartsFile = path.join(DATA_DIR, 'daily_hearts.json');
+        
+        if (!(await fs.pathExists(dailyHeartsFile))) {
+            // Create initial daily hearts file
+            await fs.writeJson(dailyHeartsFile, {
+                lastTransferDate: getTodayDateString(),
+                dailyDiningHallHearts: [],
+                dailyMenuItemHearts: []
+            }, { spaces: 2 });
+            return;
+        }
+        
+        const dailyHearts = await fs.readJson(dailyHeartsFile);
+        const today = getTodayDateString();
+        
+        if (dailyHearts.lastTransferDate !== today) {
+            // Transfer yesterday's hearts to KNN storage
+            await transferDailyHeartsToKNN();
+        }
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] [HEARTS-CHECK] Error checking previous day hearts:`, error);
+    }
+}
+
 // Heart/Like system for dining halls
 app.post('/api/hearts/dining-hall', async (req, res) => {
     try {
@@ -155,58 +235,60 @@ app.post('/api/hearts/dining-hall', async (req, res) => {
         
         console.log(`[${new Date().toISOString()}] [HEARTS-DINING] User ${userId} ${action} dining hall ${diningHallId}`);
         
-        const heartsFile = path.join(DATA_DIR, 'hearts.json');
-        let hearts = {};
+        // Check and transfer previous day hearts if needed
+        await checkAndTransferPreviousDayHearts();
         
-        if (await fs.pathExists(heartsFile)) {
-            hearts = await fs.readJson(heartsFile);
+        const dailyHeartsFile = path.join(DATA_DIR, 'daily_hearts.json');
+        let dailyHearts = {};
+        
+        if (await fs.pathExists(dailyHeartsFile)) {
+            dailyHearts = await fs.readJson(dailyHeartsFile);
+        } else {
+            dailyHearts = {
+                lastTransferDate: getTodayDateString(),
+                dailyDiningHallHearts: [],
+                dailyMenuItemHearts: []
+            };
         }
 
-        // Initialize new structure with detailed records
-        if (!hearts.diningHallHearts) hearts.diningHallHearts = [];
-        if (!hearts.diningHalls) hearts.diningHalls = {}; // Keep old structure for compatibility
-        if (!hearts.diningHalls[userId]) hearts.diningHalls[userId] = [];
+        // Initialize daily storage structures
+        if (!dailyHearts.dailyDiningHallHearts) dailyHearts.dailyDiningHallHearts = [];
 
         const now = new Date();
         const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
         const timeOfDay = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        const dateCreated = getTodayDateString();
 
-        console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Context: Day ${dayOfWeek}, Time ${timeOfDay}`);
+        console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Context: Day ${dayOfWeek}, Time ${timeOfDay}, Date ${dateCreated}`);
 
-        const userHearts = hearts.diningHalls[userId];
-        const isLiked = userHearts.includes(diningHallId);
+        // Check if heart exists in daily storage
+        const existingHeartIndex = dailyHearts.dailyDiningHallHearts.findIndex(
+            heart => heart.userId === userId && heart.diningHallId === diningHallId
+        );
+        const isLiked = existingHeartIndex !== -1;
 
         if (action === 'like' && !isLiked) {
-            // Add to old structure for compatibility
-            userHearts.push(diningHallId);
-            
-            // Add to new detailed structure
+            // Add to daily storage
             const heartRecord = {
                 userId,
                 diningHallId,
                 dayOfWeek,
                 timeOfDay,
+                dateCreated,
                 timestamp: now.toISOString()
             };
-            hearts.diningHallHearts.push(heartRecord);
+            dailyHearts.dailyDiningHallHearts.push(heartRecord);
             
-            console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Added heart record:`, heartRecord);
+            console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Added daily heart record:`, heartRecord);
         } else if (action === 'unlike' && isLiked) {
-            // Remove from old structure
-            hearts.diningHalls[userId] = userHearts.filter(id => id !== diningHallId);
+            // Remove from daily storage
+            dailyHearts.dailyDiningHallHearts.splice(existingHeartIndex, 1);
             
-            // Remove from new structure (remove all instances for this user/hall combo)
-            const beforeCount = hearts.diningHallHearts.length;
-            hearts.diningHallHearts = hearts.diningHallHearts.filter(
-                heart => !(heart.userId === userId && heart.diningHallId === diningHallId)
-            );
-            const removedCount = beforeCount - hearts.diningHallHearts.length;
-            
-            console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Removed ${removedCount} heart records for user ${userId}, hall ${diningHallId}`);
+            console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Removed daily heart record for user ${userId}, hall ${diningHallId}`);
         }
 
-        await fs.writeJson(heartsFile, hearts, { spaces: 2 });
-        console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Hearts file updated. Total dining hall hearts: ${hearts.diningHallHearts.length}`);
+        await fs.writeJson(dailyHeartsFile, dailyHearts, { spaces: 2 });
+        console.log(`[${new Date().toISOString()}] [HEARTS-DINING] Daily hearts file updated. Total daily dining hall hearts: ${dailyHearts.dailyDiningHallHearts.length}`);
         
         res.json({ 
             success: true, 
@@ -227,59 +309,61 @@ app.post('/api/hearts/menu-item', async (req, res) => {
         
         console.log(`[${new Date().toISOString()}] [HEARTS-MENU] User ${userId} ${action} menu item ${menuItemId} at dining hall ${diningHallId}`);
         
-        const heartsFile = path.join(DATA_DIR, 'hearts.json');
-        let hearts = {};
+        // Check and transfer previous day hearts if needed
+        await checkAndTransferPreviousDayHearts();
         
-        if (await fs.pathExists(heartsFile)) {
-            hearts = await fs.readJson(heartsFile);
+        const dailyHeartsFile = path.join(DATA_DIR, 'daily_hearts.json');
+        let dailyHearts = {};
+        
+        if (await fs.pathExists(dailyHeartsFile)) {
+            dailyHearts = await fs.readJson(dailyHeartsFile);
+        } else {
+            dailyHearts = {
+                lastTransferDate: getTodayDateString(),
+                dailyDiningHallHearts: [],
+                dailyMenuItemHearts: []
+            };
         }
 
-        // Initialize new structure with detailed records
-        if (!hearts.menuItemHearts) hearts.menuItemHearts = [];
-        if (!hearts.menuItems) hearts.menuItems = {}; // Keep old structure for compatibility
-        if (!hearts.menuItems[userId]) hearts.menuItems[userId] = [];
+        // Initialize daily storage structures
+        if (!dailyHearts.dailyMenuItemHearts) dailyHearts.dailyMenuItemHearts = [];
 
         const now = new Date();
         const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
         const timeOfDay = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        const dateCreated = getTodayDateString();
 
-        console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Context: Day ${dayOfWeek}, Time ${timeOfDay}`);
+        console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Context: Day ${dayOfWeek}, Time ${timeOfDay}, Date ${dateCreated}`);
 
-        const userMenuHearts = hearts.menuItems[userId];
-        const isMenuLiked = userMenuHearts.includes(menuItemId);
+        // Check if heart exists in daily storage
+        const existingHeartIndex = dailyHearts.dailyMenuItemHearts.findIndex(
+            heart => heart.userId === userId && heart.menuItemId === menuItemId
+        );
+        const isLiked = existingHeartIndex !== -1;
 
-        if (action === 'like' && !isMenuLiked) {
-            // Add to old structure for compatibility
-            userMenuHearts.push(menuItemId);
-            
-            // Add to new detailed structure
+        if (action === 'like' && !isLiked) {
+            // Add to daily storage
             const heartRecord = {
                 userId,
                 menuItemId,
-                diningHallId: diningHallId || 'unknown', // Store which dining hall this menu item was from
+                diningHallId: diningHallId || 'unknown',
                 dayOfWeek,
                 timeOfDay,
+                dateCreated,
                 timestamp: now.toISOString()
             };
-            hearts.menuItemHearts.push(heartRecord);
+            dailyHearts.dailyMenuItemHearts.push(heartRecord);
             
-            console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Added heart record:`, heartRecord);
-        } else if (action === 'unlike' && isMenuLiked) {
-            // Remove from old structure
-            hearts.menuItems[userId] = userMenuHearts.filter(id => id !== menuItemId);
+            console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Added daily heart record:`, heartRecord);
+        } else if (action === 'unlike' && isLiked) {
+            // Remove from daily storage
+            dailyHearts.dailyMenuItemHearts.splice(existingHeartIndex, 1);
             
-            // Remove from new structure (remove all instances for this user/menu item combo)
-            const beforeCount = hearts.menuItemHearts.length;
-            hearts.menuItemHearts = hearts.menuItemHearts.filter(
-                heart => !(heart.userId === userId && heart.menuItemId === menuItemId)
-            );
-            const removedCount = beforeCount - hearts.menuItemHearts.length;
-            
-            console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Removed ${removedCount} heart records for user ${userId}, menu item ${menuItemId}`);
+            console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Removed daily heart record for user ${userId}, menu item ${menuItemId}`);
         }
 
-        await fs.writeJson(heartsFile, hearts, { spaces: 2 });
-        console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Hearts file updated. Total menu item hearts: ${hearts.menuItemHearts.length}`);
+        await fs.writeJson(dailyHeartsFile, dailyHearts, { spaces: 2 });
+        console.log(`[${new Date().toISOString()}] [HEARTS-MENU] Daily hearts file updated. Total daily menu item hearts: ${dailyHearts.dailyMenuItemHearts.length}`);
         
         res.json({ 
             success: true, 
@@ -292,21 +376,34 @@ app.post('/api/hearts/menu-item', async (req, res) => {
     }
 });
 
-// Get user's hearts
+// Get user's hearts (only today's hearts for display)
 app.get('/api/hearts/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const heartsFile = path.join(DATA_DIR, 'hearts.json');
         
-        if (!(await fs.pathExists(heartsFile))) {
+        // Check and transfer previous day hearts if needed
+        await checkAndTransferPreviousDayHearts();
+        
+        const dailyHeartsFile = path.join(DATA_DIR, 'daily_hearts.json');
+        
+        if (!(await fs.pathExists(dailyHeartsFile))) {
             return res.json({ diningHalls: [], menuItems: [] });
         }
 
-        const hearts = await fs.readJson(heartsFile);
+        const dailyHearts = await fs.readJson(dailyHeartsFile);
+        
+        // Filter hearts for this user and extract just the IDs for compatibility
+        const userDiningHalls = (dailyHearts.dailyDiningHallHearts || [])
+            .filter(heart => heart.userId === userId)
+            .map(heart => heart.diningHallId);
+            
+        const userMenuItems = (dailyHearts.dailyMenuItemHearts || [])
+            .filter(heart => heart.userId === userId)
+            .map(heart => heart.menuItemId);
         
         res.json({
-            diningHalls: hearts.diningHalls?.[userId] || [],
-            menuItems: hearts.menuItems?.[userId] || []
+            diningHalls: userDiningHalls,
+            menuItems: userMenuItems
         });
     } catch (error) {
         console.error('Error getting hearts:', error.message);
@@ -314,8 +411,37 @@ app.get('/api/hearts/:userId', async (req, res) => {
     }
 });
 
-// Get user's detailed heart records (for time-based filtering)
+// Get user's detailed heart records (only today's hearts for display)
 app.get('/api/hearts/:userId/detailed', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        // Check and transfer previous day hearts if needed
+        await checkAndTransferPreviousDayHearts();
+        
+        const dailyHeartsFile = path.join(DATA_DIR, 'daily_hearts.json');
+        
+        if (!(await fs.pathExists(dailyHeartsFile))) {
+            return res.json({ diningHallHearts: [], menuItemHearts: [] });
+        }
+
+        const dailyHearts = await fs.readJson(dailyHeartsFile);
+        
+        const userDiningHearts = (dailyHearts.dailyDiningHallHearts || []).filter(heart => heart.userId === userId);
+        const userMenuHearts = (dailyHearts.dailyMenuItemHearts || []).filter(heart => heart.userId === userId);
+        
+        res.json({
+            diningHallHearts: userDiningHearts,
+            menuItemHearts: userMenuHearts
+        });
+    } catch (error) {
+        console.error('Error getting detailed hearts:', error.message);
+        res.status(500).json({ error: 'Failed to get detailed hearts' });
+    }
+});
+
+// Get KNN heart data (for recommendations - historical data)
+app.get('/api/hearts/:userId/knn', async (req, res) => {
     try {
         const { userId } = req.params;
         const heartsFile = path.join(DATA_DIR, 'hearts.json');
@@ -326,16 +452,16 @@ app.get('/api/hearts/:userId/detailed', async (req, res) => {
 
         const hearts = await fs.readJson(heartsFile);
         
-        const userDiningHearts = (hearts.diningHallHearts || []).filter(heart => heart.userId === userId);
-        const userMenuHearts = (hearts.menuItemHearts || []).filter(heart => heart.userId === userId);
+        const userDiningHearts = (hearts.knnDiningHallHearts || []).filter(heart => heart.userId === userId);
+        const userMenuHearts = (hearts.knnMenuItemHearts || []).filter(heart => heart.userId === userId);
         
         res.json({
             diningHallHearts: userDiningHearts,
             menuItemHearts: userMenuHearts
         });
     } catch (error) {
-        console.error('Error getting detailed hearts:', error.message);
-        res.status(500).json({ error: 'Failed to get detailed hearts' });
+        console.error('Error getting KNN hearts:', error.message);
+        res.status(500).json({ error: 'Failed to get KNN hearts' });
     }
 });
 
@@ -380,14 +506,14 @@ async function generateRecommendations(userId, time, day) {
 
     const hearts = await fs.readJson(heartsFile);
     
-    // Use new detailed structure if available, fallback to old structure
-    const diningHallHearts = hearts.diningHallHearts || [];
-    const menuItemHearts = hearts.menuItemHearts || [];
+    // Use KNN data structures (historical data, not daily data)
+    const diningHallHearts = hearts.knnDiningHallHearts || [];
+    const menuItemHearts = hearts.knnMenuItemHearts || [];
     
-    console.log(`[${new Date().toISOString()}] [KNN] Loaded ${diningHallHearts.length} dining hall hearts and ${menuItemHearts.length} menu item hearts`);
+    console.log(`[${new Date().toISOString()}] [KNN] Loaded ${diningHallHearts.length} dining hall hearts and ${menuItemHearts.length} menu item hearts from KNN storage`);
     
     if (diningHallHearts.length === 0 && menuItemHearts.length === 0) {
-        console.log(`[${new Date().toISOString()}] [KNN] No heart data available, returning sample recommendations`);
+        console.log(`[${new Date().toISOString()}] [KNN] No KNN heart data available, returning sample recommendations`);
         return getSampleRecommendations();
     }
 
@@ -639,4 +765,13 @@ app.listen(PORT, () => {
     // Ensure data directory exists and log its status
     fs.ensureDirSync(DATA_DIR);
     console.log(`[${new Date().toISOString()}] Data directory ensured at: ${DATA_DIR}`);
+    
+    // Check and transfer hearts from previous days on startup
+    checkAndTransferPreviousDayHearts()
+        .then(() => {
+            console.log(`[${new Date().toISOString()}] Heart transfer check completed on startup`);
+        })
+        .catch(error => {
+            console.error(`[${new Date().toISOString()}] Error during startup heart transfer check:`, error);
+        });
 });
