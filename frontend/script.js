@@ -17,12 +17,28 @@ class CornellDiningApp {
 
     async init() {
         console.log('[Frontend] Initializing Cornell Dining App...');
+        console.log('[Frontend] [DEBUG] Environment detection:');
+        console.log('[Frontend] [DEBUG] - URL:', window.location.href);
+        console.log('[Frontend] [DEBUG] - Protocol:', window.location.protocol);
+        console.log('[Frontend] [DEBUG] - Host:', window.location.host);
+        console.log('[Frontend] [DEBUG] - Is HTTPS:', window.location.protocol === 'https:');
+        console.log('[Frontend] [DEBUG] - User Agent:', navigator.userAgent);
         
         // Add a small delay to ensure DOM is fully ready
         await new Promise(resolve => setTimeout(resolve, 100));
         
         this.bindEvents();
         console.log('[Frontend] Events bound');
+        
+        // Add global error handler to catch any issues on Fly.io
+        window.addEventListener('error', (e) => {
+            console.error('[Frontend] [GLOBAL ERROR]:', e.error, e.message, e.filename, e.lineno);
+        });
+        
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('[Frontend] [UNHANDLED REJECTION]:', e.reason);
+        });
+        
         await this.checkAuth();
         console.log('[Frontend] Auth checked');
         await this.loadDiningData();
@@ -33,7 +49,69 @@ class CornellDiningApp {
         console.log('[Frontend] Date selector initialized');
         this.renderDiningHalls();
         console.log('[Frontend] Dining halls rendered');
+        
+        // Add manual check for search functionality after everything is loaded
+        setTimeout(() => {
+            this.debugSearchFunctionality();
+        }, 1000);
+        
         console.log('[Frontend] Initialization complete');
+    }
+
+    debugSearchFunctionality() {
+        console.log('[Frontend] [DEBUG] ===== DEBUGGING SEARCH FUNCTIONALITY =====');
+        
+        const searchInput = document.getElementById('searchInput');
+        const heartsManagerBtn = document.getElementById('heartsManagerBtn');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
+        
+        console.log('[Frontend] [DEBUG] Post-init element check:');
+        console.log('[Frontend] [DEBUG] - Search input found:', !!searchInput);
+        console.log('[Frontend] [DEBUG] - Hearts manager button found:', !!heartsManagerBtn);
+        console.log('[Frontend] [DEBUG] - Clear search button found:', !!clearSearchBtn);
+        
+        if (searchInput) {
+            console.log('[Frontend] [DEBUG] Search input details:');
+            console.log('[Frontend] [DEBUG] - Has data-search-bound:', searchInput.hasAttribute('data-search-bound'));
+            console.log('[Frontend] [DEBUG] - Value:', searchInput.value);
+            console.log('[Frontend] [DEBUG] - Disabled:', searchInput.disabled);
+            console.log('[Frontend] [DEBUG] - Style display:', getComputedStyle(searchInput).display);
+            console.log('[Frontend] [DEBUG] - Style visibility:', getComputedStyle(searchInput).visibility);
+            console.log('[Frontend] [DEBUG] - Style pointer-events:', getComputedStyle(searchInput).pointerEvents);
+            
+            // Test if we can programmatically interact with the search input
+            console.log('[Frontend] [DEBUG] Testing programmatic interaction...');
+            try {
+                const originalValue = searchInput.value;
+                searchInput.value = 'TEST';
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                setTimeout(() => {
+                    searchInput.value = originalValue;
+                }, 100);
+                console.log('[Frontend] [DEBUG] Programmatic test successful');
+            } catch (error) {
+                console.error('[Frontend] [DEBUG] Programmatic test failed:', error);
+            }
+        }
+        
+        if (heartsManagerBtn) {
+            console.log('[Frontend] [DEBUG] Hearts manager button details:');
+            console.log('[Frontend] [DEBUG] - Style display:', getComputedStyle(heartsManagerBtn).display);
+            console.log('[Frontend] [DEBUG] - Style visibility:', getComputedStyle(heartsManagerBtn).visibility);
+            console.log('[Frontend] [DEBUG] - Style pointer-events:', getComputedStyle(heartsManagerBtn).pointerEvents);
+            console.log('[Frontend] [DEBUG] - Disabled:', heartsManagerBtn.disabled);
+            
+            // Test if we can programmatically click the button
+            console.log('[Frontend] [DEBUG] Testing programmatic button click...');
+            try {
+                heartsManagerBtn.dispatchEvent(new Event('click', { bubbles: true }));
+                console.log('[Frontend] [DEBUG] Programmatic button test successful');
+            } catch (error) {
+                console.error('[Frontend] [DEBUG] Programmatic button test failed:', error);
+            }
+        }
+        
+        console.log('[Frontend] [DEBUG] ===== END DEBUG SEARCH FUNCTIONALITY =====');
     }
 
     getOrCreateDeviceId() {
@@ -158,6 +236,8 @@ class CornellDiningApp {
 
     bindSearchEvents() {
         console.log('[Frontend] [SEARCH] [DEBUG] ===== ATTEMPTING TO BIND SEARCH EVENTS =====');
+        console.log('[Frontend] [SEARCH] [DEBUG] Document ready state:', document.readyState);
+        console.log('[Frontend] [SEARCH] [DEBUG] Current URL:', window.location.href);
         
         // Search input event
         const searchInput = document.getElementById('searchInput');
@@ -167,6 +247,17 @@ class CornellDiningApp {
         console.log('[Frontend] [SEARCH] [DEBUG] Search input element found:', !!searchInput);
         console.log('[Frontend] [SEARCH] [DEBUG] Clear search button found:', !!clearSearchBtn);
         console.log('[Frontend] [SEARCH] [DEBUG] Test search button found:', !!testSearchBtn);
+        
+        if (searchInput) {
+            console.log('[Frontend] [SEARCH] [DEBUG] Search input details:');
+            console.log('[Frontend] [SEARCH] [DEBUG] - ID:', searchInput.id);
+            console.log('[Frontend] [SEARCH] [DEBUG] - Class:', searchInput.className);
+            console.log('[Frontend] [SEARCH] [DEBUG] - Type:', searchInput.type);
+            console.log('[Frontend] [SEARCH] [DEBUG] - Placeholder:', searchInput.placeholder);
+            console.log('[Frontend] [SEARCH] [DEBUG] - Value:', searchInput.value);
+            console.log('[Frontend] [SEARCH] [DEBUG] - Disabled:', searchInput.disabled);
+            console.log('[Frontend] [SEARCH] [DEBUG] - Read-only:', searchInput.readOnly);
+        }
         
         if (!searchInput) {
             console.error('[Frontend] [SEARCH] Could not find search input element with ID "searchInput"');
@@ -214,6 +305,17 @@ class CornellDiningApp {
         
         // Test search input directly
         console.log('[Frontend] [SEARCH] [DEBUG] Testing search input focus...');
+        
+        // Add multiple event listeners for better coverage
+        const events = ['input', 'keyup', 'change', 'paste'];
+        events.forEach(eventType => {
+            searchInput.addEventListener(eventType, (e) => {
+                console.log(`[Frontend] [SEARCH] [DEBUG] ${eventType.toUpperCase()} event triggered with value:`, e.target.value);
+                handleSearchChange(e.target.value);
+            });
+            console.log(`[Frontend] [SEARCH] [DEBUG] Added ${eventType} listener`);
+        });
+        
         searchInput.addEventListener('focus', () => {
             console.log('[Frontend] [SEARCH] [DEBUG] Search input focused!');
         });
@@ -222,31 +324,27 @@ class CornellDiningApp {
             console.log('[Frontend] [SEARCH] [DEBUG] Search input blurred!');
         });
         
-        searchInput.addEventListener('input', (e) => {
-            console.log('[Frontend] [SEARCH] [DEBUG] INPUT event triggered!');
-            handleSearchChange(e.target.value);
+        // Add click event for testing
+        searchInput.addEventListener('click', () => {
+            console.log('[Frontend] [SEARCH] [DEBUG] Search input clicked!');
         });
         
-        // Also bind keyup for additional responsiveness
-        searchInput.addEventListener('keyup', (e) => {
-            console.log('[Frontend] [SEARCH] [DEBUG] KEYUP event triggered!');
-            handleSearchChange(e.target.value);
-        });
+        // Mark as bound to prevent double-binding
+        searchInput.setAttribute('data-search-bound', 'true');
+        console.log('[Frontend] [SEARCH] [DEBUG] Search input marked as bound');
         
-        // Add keydown for immediate feedback
-        searchInput.addEventListener('keydown', (e) => {
-            console.log('[Frontend] [SEARCH] [DEBUG] KEYDOWN event triggered! Key:', e.key);
-        });
-        
-        // Add paste event handling
-        searchInput.addEventListener('paste', (e) => {
-            console.log('[Frontend] [SEARCH] [DEBUG] PASTE event triggered!');
-            // Use setTimeout to get the pasted value after it's been inserted
-            setTimeout(() => {
-                handleSearchChange(e.target.value);
-            }, 10);
-        });
-        
+        // Test immediate focus to verify the element is interactive
+        setTimeout(() => {
+            console.log('[Frontend] [SEARCH] [DEBUG] Attempting test focus...');
+            try {
+                searchInput.focus();
+                searchInput.blur();
+                console.log('[Frontend] [SEARCH] [DEBUG] Test focus/blur successful');
+            } catch (error) {
+                console.error('[Frontend] [SEARCH] [DEBUG] Test focus/blur failed:', error);
+            }
+        }, 100);
+
         // Clear button functionality
         if (clearSearchBtn) {
             clearSearchBtn.addEventListener('click', () => {
@@ -273,8 +371,6 @@ class CornellDiningApp {
             console.warn('[Frontend] [HEARTS] Hearts manager button not found');
         }
         
-        // Mark as bound
-        searchInput.setAttribute('data-search-bound', 'true');
         console.log('[Frontend] [SEARCH] All search events bound successfully');
     }
 
