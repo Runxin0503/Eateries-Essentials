@@ -10,6 +10,7 @@ class CornellDiningApp {
         this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
         this.availableDates = []; // Will be populated from API data
         this.selectedTime = 'now'; // Default to current time
+        this.pendingHeartRequests = new Set(); // Track ongoing heart requests to prevent race conditions
 
         this.init();
     }
@@ -1595,6 +1596,16 @@ class CornellDiningApp {
         }
 
         const itemId = menuItem.dataset.itemId;
+        
+        // Prevent multiple simultaneous requests for the same menu item
+        const requestKey = `menu-item-${itemId}`;
+        if (this.pendingHeartRequests.has(requestKey)) {
+            console.log(`[Frontend] [DEBOUNCE] Ignoring duplicate heart request for menu item ${itemId}`);
+            return;
+        }
+        
+        this.pendingHeartRequests.add(requestKey);
+        
         const heartIcon = menuItem.querySelector('.menu-item-heart');
         const heartImage = heartIcon.querySelector('.heart-image-small');
         const isLiked = heartIcon.classList.contains('liked');
@@ -1630,21 +1641,48 @@ class CornellDiningApp {
                 
                 setTimeout(() => heartIcon.classList.remove('animate'), 600);
 
-                // Update local state
+                // Update local state - sync with backend response
                 if (result.isLiked) {
-                    this.userHearts.menuItems.push(itemId);
+                    if (!this.userHearts.menuItems.includes(itemId)) {
+                        this.userHearts.menuItems.push(itemId);
+                    }
                 } else {
                     this.userHearts.menuItems = this.userHearts.menuItems.filter(id => id !== itemId);
                 }
                 
                 console.log(`[Frontend] Menu item heart ${result.isLiked ? 'added' : 'removed'}`);
+                
+                // Refresh recommendations immediately after hearting
+                console.log('[Frontend] Refreshing recommendations after menu item heart change');
+                await this.loadRecommendations();
+                
+                // Refresh user hearts state to ensure consistency
+                await this.loadUserHearts();
+                
+                // Re-render dining halls to show updated recommendations
+                this.renderDiningHalls();
+                
+                // Refresh hearts modal if it's currently open
+                this.refreshHeartsModalIfOpen();
             }
         } catch (error) {
             console.error('Error toggling menu item heart:', error);
+        } finally {
+            // Always remove the request lock
+            this.pendingHeartRequests.delete(requestKey);
         }
     }
 
     async toggleDiningHallHeart(hallId, card) {
+        // Prevent multiple simultaneous requests for the same dining hall
+        const requestKey = `dining-hall-${hallId}`;
+        if (this.pendingHeartRequests.has(requestKey)) {
+            console.log(`[Frontend] [DEBOUNCE] Ignoring duplicate heart request for dining hall ${hallId}`);
+            return;
+        }
+        
+        this.pendingHeartRequests.add(requestKey);
+        
         const heartIcon = card.querySelector('.heart-icon');
         const heartImage = heartIcon.querySelector('.heart-image');
         const isLiked = heartIcon.classList.contains('liked');
@@ -1675,17 +1713,35 @@ class CornellDiningApp {
                 
                 setTimeout(() => heartIcon.classList.remove('animate'), 600);
 
-                // Update local state
+                // Update local state - sync with backend response
                 if (result.isLiked) {
-                    this.userHearts.diningHalls.push(hallId);
+                    if (!this.userHearts.diningHalls.includes(hallId)) {
+                        this.userHearts.diningHalls.push(hallId);
+                    }
                 } else {
                     this.userHearts.diningHalls = this.userHearts.diningHalls.filter(id => id !== hallId);
                 }
                 
                 console.log(`[Frontend] Dining hall heart ${result.isLiked ? 'added' : 'removed'}`);
+                
+                // Refresh recommendations immediately after hearting
+                console.log('[Frontend] Refreshing recommendations after dining hall heart change');
+                await this.loadRecommendations();
+                
+                // Refresh user hearts state to ensure consistency
+                await this.loadUserHearts();
+                
+                // Re-render dining halls to show updated recommendations
+                this.renderDiningHalls();
+                
+                // Refresh hearts modal if it's currently open
+                this.refreshHeartsModalIfOpen();
             }
         } catch (error) {
             console.error('Error toggling dining hall heart:', error);
+        } finally {
+            // Always remove the request lock
+            this.pendingHeartRequests.delete(requestKey);
         }
     }
 
@@ -1734,6 +1790,15 @@ class CornellDiningApp {
             
         } catch (error) {
             console.error('[Frontend] [HEARTS] Error loading hearts data:', error);
+        }
+    }
+
+    async refreshHeartsModalIfOpen() {
+        // Check if hearts modal is currently visible and refresh it
+        const heartsModal = document.getElementById('heartsModal');
+        if (heartsModal && !heartsModal.classList.contains('hidden')) {
+            console.log('[Frontend] [HEARTS] Refreshing hearts modal since it is currently open');
+            await this.loadHeartsData();
         }
     }
 
