@@ -30,6 +30,9 @@ class CornellDiningApp {
         this.bindEvents();
         console.log('[Frontend] Events bound');
         
+        // Add network status monitoring
+        this.setupNetworkMonitoring();
+        
         // Add global error handler to catch any issues on Fly.io
         window.addEventListener('error', (e) => {
             console.error('[Frontend] [GLOBAL ERROR]:', e.error, e.message, e.filename, e.lineno);
@@ -373,6 +376,44 @@ class CornellDiningApp {
         }
         
         console.log('[Frontend] [SEARCH] All search events bound successfully');
+    }
+
+    setupNetworkMonitoring() {
+        // Monitor network status
+        window.addEventListener('online', () => {
+            console.log('[Frontend] Network connection restored');
+            this.clearErrorMessage();
+            
+            // If we have no dining data, try to reload it
+            if (!this.diningHalls || this.diningHalls.length === 0) {
+                console.log('[Frontend] Attempting to reload dining data after network restoration');
+                this.loadDiningData();
+            }
+        });
+        
+        window.addEventListener('offline', () => {
+            console.log('[Frontend] Network connection lost');
+            this.showNetworkError();
+        });
+        
+        // Check initial network status
+        if (!navigator.onLine) {
+            this.showNetworkError();
+        }
+    }
+
+    showNetworkError() {
+        this.clearErrorMessage();
+        
+        const errorBanner = document.createElement('div');
+        errorBanner.className = 'error-banner persistent-error';
+        errorBanner.innerHTML = `
+            <div class="error-content">
+                <span>No internet connection. Please check your network and try again.</span>
+                <button onclick="window.location.reload()" class="retry-button">Retry</button>
+            </div>
+        `;
+        document.body.appendChild(errorBanner);
     }
 
     initializeDateSelector() {
@@ -968,7 +1009,8 @@ class CornellDiningApp {
         }
     }
 
-    async loadDiningData() {
+    async loadDiningData(retryCount = 0) {
+        const maxRetries = 3;
         const loadingScreen = document.getElementById('loadingScreen');
         loadingScreen.classList.remove('hidden');
 
@@ -978,8 +1020,21 @@ class CornellDiningApp {
             const isInitialLoad = this.availableDates.length === 0;
             const url = isInitialLoad ? '/api/dining' : `/api/dining/${this.selectedDate}`;
             
-            console.log('[Frontend] Fetching dining data from backend for date:', isInitialLoad ? 'all dates' : this.selectedDate);
-            const response = await fetch(url);
+            console.log(`[Frontend] Fetching dining data from backend for date: ${isInitialLoad ? 'all dates' : this.selectedDate} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+            
+            // Add timeout and retry logic
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+            
+            const response = await fetch(url, { 
+                signal: controller.signal,
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            });
+            
+            clearTimeout(timeoutId);
             console.log('[Frontend] Response status:', response.status);
             
             if (!response.ok) {
@@ -1027,12 +1082,67 @@ class CornellDiningApp {
 
             console.log('[Frontend] Final processed dining halls:', this.diningHalls.length);
             loadingScreen.classList.add('hidden');
+            
+            // Clear any existing error messages
+            this.clearErrorMessage();
+            
         } catch (error) {
-            console.error('[Frontend] Error loading dining data:', error);
+            console.error(`[Frontend] Error loading dining data (attempt ${retryCount + 1}):`, error);
             console.error('[Frontend] Error stack:', error.stack);
+            
+            // Retry logic
+            if (retryCount < maxRetries) {
+                const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
+                console.log(`[Frontend] Retrying in ${retryDelay}ms...`);
+                
+                this.showRetryMessage(retryCount + 1, maxRetries + 1);
+                
+                setTimeout(() => {
+                    this.loadDiningData(retryCount + 1);
+                }, retryDelay);
+                
+                return; // Don't hide loading screen yet
+            }
+            
+            // All retries exhausted
             loadingScreen.classList.add('hidden');
-            alert('Failed to load dining data. Please refresh the page.');
+            this.showPersistentError();
         }
+    }
+
+    clearErrorMessage() {
+        const existingError = document.querySelector('.error-banner');
+        if (existingError) {
+            existingError.remove();
+        }
+    }
+
+    showRetryMessage(currentAttempt, maxAttempts) {
+        this.clearErrorMessage();
+        
+        const errorBanner = document.createElement('div');
+        errorBanner.className = 'error-banner retry-banner';
+        errorBanner.innerHTML = `
+            <div class="error-content">
+                <span>Loading dining data... (Attempt ${currentAttempt}/${maxAttempts})</span>
+                <div class="loading-spinner"></div>
+            </div>
+        `;
+        document.body.appendChild(errorBanner);
+    }
+
+    showPersistentError() {
+        this.clearErrorMessage();
+        
+        const errorBanner = document.createElement('div');
+        errorBanner.className = 'error-banner persistent-error';
+        errorBanner.innerHTML = `
+            <div class="error-content">
+                <span>Failed to load dining data. Please check your connection and try again.</span>
+                <button onclick="window.location.reload()" class="retry-button">Retry</button>
+            </div>
+        `;
+        document.body.appendChild(errorBanner);
     }
 
     cleanDescription(aboutText) {
