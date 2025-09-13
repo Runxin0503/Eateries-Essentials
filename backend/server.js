@@ -747,6 +747,148 @@ function combineRecommendations(diningHallProbs, menuItemProbs, alpha, beta) {
     return combined;
 }
 
+// Hearts Management API Endpoints
+
+// Get daily hearts for a user
+app.get('/api/hearts/daily/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        console.log(`[${new Date().toISOString()}] [HEARTS] Getting daily hearts for user: ${userId}`);
+        
+        const filePath = path.join(DATA_DIR, 'daily_hearts.json');
+        
+        if (!await fs.pathExists(filePath)) {
+            console.log(`[${new Date().toISOString()}] [HEARTS] No daily hearts file found`);
+            return res.json({ diningHallHearts: [], menuItemHearts: [] });
+        }
+        
+        const hearts = await fs.readJson(filePath);
+        
+        // Filter hearts for the specific user
+        const userDiningHearts = (hearts.dailyDiningHallHearts || []).filter(heart => heart.userId === userId);
+        const userMenuHearts = (hearts.dailyMenuItemHearts || []).filter(heart => heart.userId === userId);
+        
+        console.log(`[${new Date().toISOString()}] [HEARTS] Found ${userDiningHearts.length} dining hall hearts and ${userMenuHearts.length} menu item hearts for user ${userId}`);
+        
+        res.json({
+            diningHallHearts: userDiningHearts,
+            menuItemHearts: userMenuHearts
+        });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] [HEARTS] Error getting daily hearts:`, error);
+        res.status(500).json({ error: 'Failed to get daily hearts' });
+    }
+});
+
+// Get KNN hearts for a user
+app.get('/api/hearts/knn/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        console.log(`[${new Date().toISOString()}] [HEARTS] Getting KNN hearts for user: ${userId}`);
+        
+        const filePath = path.join(DATA_DIR, 'hearts.json');
+        
+        if (!await fs.pathExists(filePath)) {
+            console.log(`[${new Date().toISOString()}] [HEARTS] No KNN hearts file found`);
+            return res.json({ diningHallHearts: [], menuItemHearts: [] });
+        }
+        
+        const hearts = await fs.readJson(filePath);
+        
+        // Filter hearts for the specific user
+        const userDiningHearts = (hearts.knnDiningHallHearts || []).filter(heart => heart.userId === userId);
+        const userMenuHearts = (hearts.knnMenuItemHearts || []).filter(heart => heart.userId === userId);
+        
+        console.log(`[${new Date().toISOString()}] [HEARTS] Found ${userDiningHearts.length} KNN dining hall hearts and ${userMenuHearts.length} KNN menu item hearts for user ${userId}`);
+        
+        res.json({
+            diningHallHearts: userDiningHearts,
+            menuItemHearts: userMenuHearts
+        });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] [HEARTS] Error getting KNN hearts:`, error);
+        res.status(500).json({ error: 'Failed to get KNN hearts' });
+    }
+});
+
+// Remove daily heart
+app.delete('/api/hearts/daily/:userId/:type/:heartId', async (req, res) => {
+    try {
+        const { userId, type, heartId } = req.params;
+        console.log(`[${new Date().toISOString()}] [HEARTS] Removing daily ${type} heart ${heartId} for user: ${userId}`);
+        
+        const filePath = path.join(DATA_DIR, 'daily_hearts.json');
+        
+        if (!await fs.pathExists(filePath)) {
+            console.log(`[${new Date().toISOString()}] [HEARTS] No daily hearts file found`);
+            return res.json({ success: true, message: 'Heart not found' });
+        }
+        
+        const hearts = await fs.readJson(filePath);
+        
+        if (type === 'dining-hall') {
+            const originalCount = hearts.dailyDiningHallHearts?.length || 0;
+            hearts.dailyDiningHallHearts = hearts.dailyDiningHallHearts?.filter(heart => 
+                !(heart.userId === userId && (heart.diningHallId === parseInt(heartId) || heart.diningHallId === heartId))
+            ) || [];
+            console.log(`[${new Date().toISOString()}] [HEARTS] Removed ${originalCount - hearts.dailyDiningHallHearts.length} dining hall hearts`);
+        } else if (type === 'menu-item') {
+            const originalCount = hearts.dailyMenuItemHearts?.length || 0;
+            hearts.dailyMenuItemHearts = hearts.dailyMenuItemHearts?.filter(heart => 
+                !(heart.userId === userId && (heart.menuItemId === parseInt(heartId) || heart.menuItemId === heartId))
+            ) || [];
+            console.log(`[${new Date().toISOString()}] [HEARTS] Removed ${originalCount - hearts.dailyMenuItemHearts.length} menu item hearts`);
+        }
+        
+        await fs.writeJson(filePath, hearts, { spaces: 2 });
+        console.log(`[${new Date().toISOString()}] [HEARTS] Daily hearts updated for user: ${userId}`);
+        
+        res.json({ success: true, message: 'Heart removed successfully' });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] [HEARTS] Error removing daily heart:`, error);
+        res.status(500).json({ error: 'Failed to remove daily heart' });
+    }
+});
+
+// Remove KNN heart
+app.delete('/api/hearts/knn/:userId/:type/:heartId', async (req, res) => {
+    try {
+        const { userId, type, heartId } = req.params;
+        console.log(`[${new Date().toISOString()}] [HEARTS] Removing KNN ${type} heart ${heartId} for user: ${userId}`);
+        
+        const filePath = path.join(DATA_DIR, 'hearts.json');
+        
+        if (!await fs.pathExists(filePath)) {
+            console.log(`[${new Date().toISOString()}] [HEARTS] No KNN hearts file found`);
+            return res.json({ success: true, message: 'Heart not found' });
+        }
+        
+        const hearts = await fs.readJson(filePath);
+        
+        if (type === 'dining-hall') {
+            const originalCount = hearts.knnDiningHallHearts?.length || 0;
+            hearts.knnDiningHallHearts = hearts.knnDiningHallHearts?.filter(heart => 
+                !(heart.userId === userId && (heart.diningHallId === parseInt(heartId) || heart.diningHallId === heartId))
+            ) || [];
+            console.log(`[${new Date().toISOString()}] [HEARTS] Removed ${originalCount - hearts.knnDiningHallHearts.length} KNN dining hall hearts`);
+        } else if (type === 'menu-item') {
+            const originalCount = hearts.knnMenuItemHearts?.length || 0;
+            hearts.knnMenuItemHearts = hearts.knnMenuItemHearts?.filter(heart => 
+                !(heart.userId === userId && (heart.menuItemId === parseInt(heartId) || heart.menuItemId === heartId))
+            ) || [];
+            console.log(`[${new Date().toISOString()}] [HEARTS] Removed ${originalCount - hearts.knnMenuItemHearts.length} KNN menu item hearts`);
+        }
+        
+        await fs.writeJson(filePath, hearts, { spaces: 2 });
+        console.log(`[${new Date().toISOString()}] [HEARTS] KNN hearts updated for user: ${userId}`);
+        
+        res.json({ success: true, message: 'Heart removed successfully' });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] [HEARTS] Error removing KNN heart:`, error);
+        res.status(500).json({ error: 'Failed to remove KNN heart' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
     console.log(`[${new Date().toISOString()}] Data directory: ${DATA_DIR}`);

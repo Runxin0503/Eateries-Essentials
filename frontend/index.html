@@ -22,8 +22,11 @@
                     <span class="search-icon">🔍</span>
                     <button type="button" id="clearSearchBtn" class="clear-search-btn hidden">✕</button>
                 </div>
-                <!-- Debug test button -->
-                <button type="button" id="testSearchBtn" style="margin-left: 10px; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">Test Search</button>
+                <!-- Hearts Management Button -->
+                <button type="button" id="heartsManagerBtn" style="margin-left: 10px; padding: 8px 16px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px;">
+                    <span>❤️</span>
+                    <span>Manage Hearts</span>
+                </button>
             </div>
             
             <div class="date-section">
@@ -103,6 +106,59 @@
                 <p>You need to sign in to like dining halls and menu items.</p>
                 <button id="modalSignInBtn" class="btn btn-primary">Sign In</button>
                 <button id="modalCloseBtn" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+
+        <!-- Hearts Management Modal -->
+        <div id="heartsModal" class="modal hidden">
+            <div class="modal-content hearts-modal-content">
+                <div class="hearts-modal-header">
+                    <h3>❤️ Manage Your Hearts</h3>
+                    <button id="heartsModalCloseBtn" class="modal-close-btn">✕</button>
+                </div>
+                <div class="hearts-modal-body">
+                    <div class="hearts-stats">
+                        <div class="hearts-stat">
+                            <span class="stat-number" id="dailyHeartsCount">0</span>
+                            <span class="stat-label">Daily Hearts</span>
+                        </div>
+                        <div class="hearts-stat">
+                            <span class="stat-number" id="knnHeartsCount">0</span>
+                            <span class="stat-label">KNN Hearts</span>
+                        </div>
+                        <div class="hearts-stat">
+                            <span class="stat-number" id="totalHeartsCount">0</span>
+                            <span class="stat-label">Total Hearts</span>
+                        </div>
+                    </div>
+                    
+                    <div class="hearts-tabs">
+                        <button class="hearts-tab active" data-tab="daily">Daily Hearts</button>
+                        <button class="hearts-tab" data-tab="knn">KNN Hearts</button>
+                    </div>
+                    
+                    <div class="hearts-content">
+                        <div id="dailyHeartsTab" class="hearts-tab-content active">
+                            <div class="hearts-section-header">
+                                <h4>🌅 Today's Hearts</h4>
+                                <p>Hearts from today that will transfer to KNN storage at midnight</p>
+                            </div>
+                            <div id="dailyHeartsList" class="hearts-list">
+                                <!-- Daily hearts will be populated here -->
+                            </div>
+                        </div>
+                        
+                        <div id="knnHeartsTab" class="hearts-tab-content">
+                            <div class="hearts-section-header">
+                                <h4>🧠 Historical Hearts (KNN)</h4>
+                                <p>Past hearts used for personalized recommendations</p>
+                            </div>
+                            <div id="knnHeartsList" class="hearts-list">
+                                <!-- KNN hearts will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

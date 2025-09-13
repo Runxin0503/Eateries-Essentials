@@ -917,3 +917,232 @@ body {
         background: #dee2e6;
     }
 }
+
+/* Hearts Management Modal */
+.hearts-modal-content {
+    max-width: 800px;
+    width: 90vw;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.hearts-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem 1rem 2rem;
+    border-bottom: 2px solid #eee;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    margin: -1.5rem -2rem 0 -2rem;
+}
+
+.hearts-modal-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: background 0.3s ease;
+}
+
+.modal-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.hearts-modal-body {
+    padding: 1.5rem 0 0 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.hearts-stats {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 2rem;
+    padding: 0 1rem;
+}
+
+.hearts-stat {
+    text-align: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+    min-width: 120px;
+}
+
+.stat-number {
+    display: block;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #e74c3c;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 0.5rem;
+}
+
+.hearts-tabs {
+    display: flex;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 1.5rem;
+}
+
+.hearts-tab {
+    flex: 1;
+    padding: 1rem 2rem;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+}
+
+.hearts-tab.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.hearts-tab:hover:not(.active) {
+    background: #f8f9fa;
+    color: #333;
+}
+
+.hearts-tab-content {
+    display: none;
+    padding: 0 2rem;
+}
+
+.hearts-tab-content.active {
+    display: block;
+}
+
+.hearts-section-header {
+    margin-bottom: 1.5rem;
+}
+
+.hearts-section-header h4 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.hearts-section-header p {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.hearts-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.heart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.heart-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.heart-item-info {
+    flex: 1;
+}
+
+.heart-item-name {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 0.25rem;
+}
+
+.heart-item-details {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.heart-item-type {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    background: #e3f2fd;
+    color: #1976d2;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-right: 0.5rem;
+}
+
+.heart-item-date {
+    color: #999;
+}
+
+.heart-item-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.heart-remove-btn {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.heart-remove-btn:hover {
+    background: #c0392b;
+    transform: translateY(-1px);
+}
+
+.heart-remove-btn:active {
+    transform: translateY(0);
+}
+
+.hearts-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #999;
+}
+
+.hearts-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+/* Loading state for hearts */
+.hearts-loading {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+}
+
+.hearts-loading .spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 1rem auto;
+}

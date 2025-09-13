@@ -127,6 +127,19 @@ class CornellDiningApp {
             document.getElementById('authModal').classList.add('hidden');
         });
 
+        // Hearts modal events
+        document.getElementById('heartsModalCloseBtn').addEventListener('click', () => {
+            document.getElementById('heartsModal').classList.add('hidden');
+        });
+
+        // Hearts modal tab switching
+        document.querySelectorAll('.hearts-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.tab;
+                this.switchHeartsTab(tabName);
+            });
+        });
+
         // Sign out
         document.getElementById('signOutBtn').addEventListener('click', () => {
             this.signOut();
@@ -247,23 +260,16 @@ class CornellDiningApp {
             console.warn('[Frontend] [SEARCH] Clear search button not found');
         }
         
-        // Test search button for debugging
-        if (testSearchBtn) {
-            testSearchBtn.addEventListener('click', () => {
-                console.log('[Frontend] [SEARCH] [DEBUG] TEST BUTTON CLICKED!');
-                const currentSearchInput = document.getElementById('searchInput');
-                if (currentSearchInput) {
-                    console.log('[Frontend] [SEARCH] [DEBUG] Setting search input value to "burger"');
-                    currentSearchInput.value = 'burger';
-                    console.log('[Frontend] [SEARCH] [DEBUG] Triggering search manually');
-                    this.onSearchChange('burger');
-                } else {
-                    console.error('[Frontend] [SEARCH] [DEBUG] Search input not found during test');
-                }
+        // Hearts management button
+        const heartsManagerBtn = document.getElementById('heartsManagerBtn');
+        if (heartsManagerBtn) {
+            heartsManagerBtn.addEventListener('click', () => {
+                console.log('[Frontend] [HEARTS] Hearts manager button clicked');
+                this.showHeartsModal();
             });
-            console.log('[Frontend] [SEARCH] [DEBUG] Test button event bound');
+            console.log('[Frontend] [HEARTS] Hearts manager button event bound');
         } else {
-            console.warn('[Frontend] [SEARCH] [DEBUG] Test search button not found');
+            console.warn('[Frontend] [HEARTS] Hearts manager button not found');
         }
         
         // Mark as bound
@@ -307,87 +313,263 @@ class CornellDiningApp {
     onSearchChange(searchTerm) {
         console.log('[Frontend] [SEARCH] Search term changed to:', `"${searchTerm}"`);
         console.log('[Frontend] [SEARCH] Search term length:', searchTerm.length);
-        console.log('[Frontend] [SEARCH] Search term normalized:', `"${searchTerm.toLowerCase().trim()}"`);
-        this.applySearchFilter(searchTerm);
+        
+        // Trim the search term first
+        const trimmedSearchTerm = searchTerm.trim();
+        console.log('[Frontend] [SEARCH] Search term trimmed:', `"${trimmedSearchTerm}"`);
+        console.log('[Frontend] [SEARCH] Trimmed search term length:', trimmedSearchTerm.length);
+        
+        this.applySearchFilter(trimmedSearchTerm);
+    }
+
+    // Clear all search filters and show everything in alphabetical order
+    clearAllSearchFilters() {
+        console.log('[Frontend] [SEARCH] Clearing all search filters');
+        
+        const diningHallCards = document.querySelectorAll('.dining-hall-card');
+        
+        // Apply default ordering: Open first, then Closed (both alphabetical)
+        this.applyCardOrdering(diningHallCards, null);
+        
+        // Remove all search filtering
+        diningHallCards.forEach((card) => {
+            card.classList.remove('search-filtered');
+            const menuItems = card.querySelectorAll('.menu-item');
+            menuItems.forEach((item) => {
+                item.classList.remove('search-filtered');
+            });
+        });
+        
+        console.log('[Frontend] [SEARCH] Finished clearing all search filters');
+    }
+
+    /**
+     * Apply card ordering based on current conditions
+     * STANDARD ORDER: Open first, Closed second (both alphabetical)
+     * 
+     * SPECIAL CONDITIONS (like search): 
+     * 1. Open & match condition first
+     * 2. Closed & match condition second  
+     * 3. Open & !match condition third
+     * 4. Closed & !match condition fourth
+     * 
+     * @param {NodeList|Array} cards - The dining hall cards to order
+     * @param {Object|null} specialCondition - Special condition object with:
+     *   - matchesFn: function(card) => boolean - determines if card matches condition
+     *   - scoreFn: function(card) => number - assigns relevance score within matching cards
+     *   - name: string - condition name for logging
+     * 
+     * NOTE: Any future special conditions should follow this same 4-tier pattern:
+     * Open+Match, Closed+Match, Open+NoMatch, Closed+NoMatch
+     */
+    applyCardOrdering(cards, specialCondition = null) {
+        const container = document.getElementById('diningHallsList');
+        if (!container) {
+            console.error('[Frontend] [ORDERING] Could not find dining halls list container');
+            return;
+        }
+
+        const cardArray = Array.from(cards);
+        
+        if (!specialCondition) {
+            // STANDARD ORDER: Open first, Closed second (both alphabetical)
+            console.log('[Frontend] [ORDERING] Applying standard order: Open first, Closed second');
+            
+            const openCards = [];
+            const closedCards = [];
+            
+            cardArray.forEach((card) => {
+                const isOpen = this.isCardOpen(card);
+                card.dataset.diningHallName = this.getCardName(card);
+                
+                if (isOpen) {
+                    openCards.push(card);
+                } else {
+                    closedCards.push(card);
+                }
+            });
+            
+            // Sort both groups alphabetically
+            const sortedOpen = this.sortCardsAlphabetically(openCards);
+            const sortedClosed = this.sortCardsAlphabetically(closedCards);
+            
+            // Apply to DOM: Open first, then Closed
+            sortedOpen.forEach(card => container.appendChild(card));
+            sortedClosed.forEach(card => container.appendChild(card));
+            
+            console.log(`[Frontend] [ORDERING] Standard order applied: ${sortedOpen.length} open, ${sortedClosed.length} closed`);
+            return;
+        }
+
+        // SPECIAL CONDITION ORDER: 4-tier hierarchy
+        console.log(`[Frontend] [ORDERING] Applying special condition order: ${specialCondition.name}`);
+        
+        const openMatching = [];
+        const closedMatching = [];
+        const openNonMatching = [];
+        const closedNonMatching = [];
+        
+        cardArray.forEach((card, cardIndex) => {
+            const isOpen = this.isCardOpen(card);
+            const matches = specialCondition.matchesFn(card);
+            const cardName = this.getCardName(card);
+            
+            // Store metadata for sorting
+            card.dataset.diningHallName = cardName;
+            card.dataset.isOpen = isOpen;
+            if (matches && specialCondition.scoreFn) {
+                card.dataset.searchScore = specialCondition.scoreFn(card);
+            }
+            
+            // Categorize into 4-tier hierarchy
+            if (isOpen && matches) {
+                openMatching.push(card);
+                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 1: Open + Matching`);
+            } else if (!isOpen && matches) {
+                closedMatching.push(card);
+                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 2: Closed + Matching`);
+            } else if (isOpen && !matches) {
+                openNonMatching.push(card);
+                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 3: Open + Non-matching`);
+            } else {
+                closedNonMatching.push(card);
+                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 4: Closed + Non-matching`);
+            }
+        });
+        
+        // Sort each tier (matching cards by relevance score, non-matching alphabetically)
+        const sortedOpenMatching = this.sortCardsByRelevance(openMatching);
+        const sortedClosedMatching = this.sortCardsByRelevance(closedMatching);
+        const sortedOpenNonMatching = this.sortCardsAlphabetically(openNonMatching);
+        const sortedClosedNonMatching = this.sortCardsAlphabetically(closedNonMatching);
+        
+        console.log(`[Frontend] [ORDERING] ${specialCondition.name} 4-tier hierarchy:`);
+        console.log(`[Frontend] [ORDERING] Tier 1 - Open + Matching: ${sortedOpenMatching.length} cards`);
+        console.log(`[Frontend] [ORDERING] Tier 2 - Closed + Matching: ${sortedClosedMatching.length} cards`);
+        console.log(`[Frontend] [ORDERING] Tier 3 - Open + Non-matching: ${sortedOpenNonMatching.length} cards`);
+        console.log(`[Frontend] [ORDERING] Tier 4 - Closed + Non-matching: ${sortedClosedNonMatching.length} cards`);
+        
+        // Apply to DOM in 4-tier order
+        sortedOpenMatching.forEach(card => container.appendChild(card));
+        sortedClosedMatching.forEach(card => container.appendChild(card));
+        sortedOpenNonMatching.forEach(card => container.appendChild(card));
+        sortedClosedNonMatching.forEach(card => container.appendChild(card));
+    }
+
+    // Helper function to determine if a card is open
+    isCardOpen(card) {
+        const isOpen = !card.classList.contains('closed-hall');
+        const statusElement = card.querySelector('.dining-hall-status');
+        const statusText = statusElement ? statusElement.textContent.toLowerCase() : '';
+        return isOpen && !statusText.includes('closed');
+    }
+
+    // Helper function to get card name
+    getCardName(card) {
+        const nameElement = card.querySelector('.dining-hall-name');
+        return nameElement ? nameElement.textContent.toLowerCase() : '';
+    }
+
+    // Sort cards by relevance score, then alphabetically
+    sortCardsByRelevance(cards) {
+        return cards.sort((a, b) => {
+            const scoreA = parseInt(a.dataset.searchScore) || 0;
+            const scoreB = parseInt(b.dataset.searchScore) || 0;
+            
+            // First sort by relevance score (higher is better)
+            if (scoreA !== scoreB) {
+                return scoreB - scoreA;
+            }
+            
+            // Then sort alphabetically
+            const nameA = a.dataset.diningHallName || '';
+            const nameB = b.dataset.diningHallName || '';
+            return nameA.localeCompare(nameB);
+        });
+    }
+
+    // Sort cards alphabetically by name
+    sortCardsAlphabetically(cards) {
+        return cards.sort((a, b) => {
+            const nameA = a.dataset.diningHallName || '';
+            const nameB = b.dataset.diningHallName || '';
+            return nameA.localeCompare(nameB);
+        });
+    }
+
+    // Normalize text for comparison by removing spaces and replacing special characters
+    normalizeForSearch(text) {
+        return text
+            .toLowerCase()
+            .trim()
+            // Remove all spaces
+            .replace(/\s+/g, '')
+            // Replace accented characters with their base equivalents
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            // Replace common special characters
+            .replace(/['']/g, "'")  // Smart quotes to regular apostrophe
+            .replace(/[""]/g, '"')  // Smart quotes to regular quotes
+            .replace(/[–—]/g, '-')  // En dash and em dash to hyphen
+            .replace(/[àáâãäå]/g, 'a')
+            .replace(/[èéêë]/g, 'e')
+            .replace(/[ìíîï]/g, 'i')
+            .replace(/[òóôõö]/g, 'o')
+            .replace(/[ùúûü]/g, 'u')
+            .replace(/[ýÿ]/g, 'y')
+            .replace(/[ñ]/g, 'n')
+            .replace(/[ç]/g, 'c')
+            .replace(/[ß]/g, 'ss')
+            .replace(/[æ]/g, 'ae')
+            .replace(/[œ]/g, 'oe')
+            .replace(/[ø]/g, 'o')
+            .replace(/[þ]/g, 'th')
+            .replace(/[ð]/g, 'd');
     }
 
     applySearchFilter(searchTerm) {
         console.log('[Frontend] [SEARCH] Starting applySearchFilter with term:', `"${searchTerm}"`);
         
-        const normalizedSearch = searchTerm.toLowerCase().trim();
+        // Early check for empty or whitespace-only strings
+        if (!searchTerm || !searchTerm.trim()) {
+            console.log('[Frontend] [SEARCH] Empty or whitespace-only search term - clearing all filters');
+            this.clearAllSearchFilters();
+            return;
+        }
+        
+        const normalizedSearch = this.normalizeForSearch(searchTerm);
         console.log('[Frontend] [SEARCH] Normalized search term:', `"${normalizedSearch}"`);
+        
+        // Double-check after normalization (in case special characters result in empty string)
+        if (!normalizedSearch) {
+            console.log('[Frontend] [SEARCH] Normalized search term is empty - clearing all filters');
+            this.clearAllSearchFilters();
+            return;
+        }
         
         const diningHallCards = document.querySelectorAll('.dining-hall-card');
         console.log('[Frontend] [SEARCH] Found dining hall cards:', diningHallCards.length);
-        
-        if (!normalizedSearch) {
-            console.log('[Frontend] [SEARCH] Empty search term - clearing all filters');
-            // No search term - show everything normally in alphabetical order
-            const sortedCards = Array.from(diningHallCards).sort((a, b) => {
-                const nameElementA = a.querySelector('.dining-hall-name');
-                const nameElementB = b.querySelector('.dining-hall-name');
-                
-                if (!nameElementA || !nameElementB) return 0;
-                
-                const nameA = nameElementA.textContent.toLowerCase();
-                const nameB = nameElementB.textContent.toLowerCase();
-                return nameA.localeCompare(nameB);
-            });
-            
-            const container = document.getElementById('diningHallsList');
-            if (container) {
-                sortedCards.forEach((card) => {
-                    card.classList.remove('search-filtered');
-                    const menuItems = card.querySelectorAll('.menu-item');
-                    menuItems.forEach((item) => {
-                        item.classList.remove('search-filtered');
-                    });
-                    container.appendChild(card);
-                });
-            }
-            console.log('[Frontend] [SEARCH] Finished clearing all filters');
-            return;
-        }
 
         console.log('[Frontend] [SEARCH] Processing search with non-empty term');
         
-        // Get container for reordering
-        const container = document.getElementById('diningHallsList');
-        if (!container) {
-            console.error('[Frontend] [SEARCH] Could not find dining halls list container');
-            return;
-        }
-        
-        // Analyze each card for matches and open/closed status
-        const openMatchingCards = [];
-        const closedMatchingCards = [];
-        const openNonMatchingCards = [];
-        const closedNonMatchingCards = [];
-        
+        // Process each card to determine matches and apply menu item filtering
         Array.from(diningHallCards).forEach((card, cardIndex) => {
             const diningHallNameElement = card.querySelector('.dining-hall-name');
             if (!diningHallNameElement) {
                 console.warn(`[Frontend] [SEARCH] Card ${cardIndex} missing dining hall name element`);
-                closedNonMatchingCards.push(card);
+                card.classList.add('search-filtered');
                 return;
             }
             
             const diningHallName = diningHallNameElement.textContent.toLowerCase();
-            console.log(`[Frontend] [SEARCH] Processing card ${cardIndex}: "${diningHallName}"`);
-            
-            // Check if dining hall is open or closed
-            const isOpen = !card.classList.contains('closed-hall');
-            const statusElement = card.querySelector('.dining-hall-status');
-            const statusText = statusElement ? statusElement.textContent.toLowerCase() : '';
-            const isActuallyOpen = isOpen && !statusText.includes('closed');
-            
-            console.log(`[Frontend] [SEARCH] Card ${cardIndex} open status:`, isActuallyOpen);
+            const normalizedDiningHallName = this.normalizeForSearch(diningHallNameElement.textContent);
+            console.log(`[Frontend] [SEARCH] Processing card ${cardIndex}: "${diningHallName}" -> normalized: "${normalizedDiningHallName}"`);
             
             const menuItems = card.querySelectorAll('.menu-item');
             console.log(`[Frontend] [SEARCH] Card ${cardIndex} has ${menuItems.length} menu items`);
             
-            let diningHallMatches = diningHallName.includes(normalizedSearch);
-            console.log(`[Frontend] [SEARCH] Dining hall "${diningHallName}" matches "${normalizedSearch}":`, diningHallMatches);
+            let diningHallMatches = normalizedDiningHallName.includes(normalizedSearch);
+            console.log(`[Frontend] [SEARCH] Dining hall "${normalizedDiningHallName}" matches "${normalizedSearch}":`, diningHallMatches);
             
             let hasMatchingMenuItems = false;
             let matchingMenuItemsCount = 0;
@@ -402,9 +584,10 @@ class CornellDiningApp {
                 }
                 
                 const menuItemName = menuItemNameElement.textContent.toLowerCase();
-                const menuItemMatches = menuItemName.includes(normalizedSearch);
+                const normalizedMenuItemName = this.normalizeForSearch(menuItemNameElement.textContent);
+                const menuItemMatches = normalizedMenuItemName.includes(normalizedSearch);
                 
-                console.log(`[Frontend] [SEARCH] Menu item ${menuIndex} "${menuItemName}" matches "${normalizedSearch}":`, menuItemMatches);
+                console.log(`[Frontend] [SEARCH] Menu item ${menuIndex} "${menuItemName}" -> normalized: "${normalizedMenuItemName}" matches "${normalizedSearch}":`, menuItemMatches);
                 
                 if (menuItemMatches) {
                     hasMatchingMenuItems = true;
@@ -419,105 +602,46 @@ class CornellDiningApp {
 
             console.log(`[Frontend] [SEARCH] Card ${cardIndex} has matching menu items:`, hasMatchingMenuItems);
 
-            // Determine if this card has any matches
+            // Determine if this card has any matches and set filtering
             const cardHasMatches = diningHallMatches || hasMatchingMenuItems;
             
             if (cardHasMatches) {
                 card.classList.remove('search-filtered');
-                // Store metadata for sorting
-                card.dataset.searchScore = diningHallMatches ? 1000 : matchingMenuItemsCount; // Dining hall name matches get highest priority
-                card.dataset.diningHallName = diningHallName;
-                card.dataset.isOpen = isActuallyOpen;
-                
-                // Categorize by open/closed status
-                if (isActuallyOpen) {
-                    openMatchingCards.push(card);
-                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to OPEN MATCHING (score: ${card.dataset.searchScore})`);
-                } else {
-                    closedMatchingCards.push(card);
-                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to CLOSED MATCHING (score: ${card.dataset.searchScore})`);
-                }
+                console.log(`[Frontend] [SEARCH] Card ${cardIndex} has matches - showing`);
             } else {
                 card.classList.add('search-filtered');
-                card.dataset.diningHallName = diningHallName;
-                card.dataset.isOpen = isActuallyOpen;
-                
-                // Categorize by open/closed status
-                if (isActuallyOpen) {
-                    openNonMatchingCards.push(card);
-                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to OPEN NON-MATCHING (filtered)`);
-                } else {
-                    closedNonMatchingCards.push(card);
-                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to CLOSED NON-MATCHING (filtered)`);
-                }
+                console.log(`[Frontend] [SEARCH] Card ${cardIndex} has no matches - filtering out`);
             }
         });
-        
-        // Sort each category by relevance (dining hall name matches first, then by number of menu matches, then alphabetically)
-        const sortCards = (cards) => {
-            return cards.sort((a, b) => {
-                const scoreA = parseInt(a.dataset.searchScore) || 0;
-                const scoreB = parseInt(b.dataset.searchScore) || 0;
+
+        // Apply search-based ordering using the new ordering system
+        const searchCondition = {
+            name: 'Search',
+            matchesFn: (card) => {
+                // A card matches if it has search matches (not filtered out)
+                return !card.classList.contains('search-filtered');
+            },
+            scoreFn: (card) => {
+                // Calculate relevance score for matching cards
+                const diningHallNameElement = card.querySelector('.dining-hall-name');
+                if (!diningHallNameElement) return 0;
                 
-                // First sort by search score (higher is better)
-                if (scoreA !== scoreB) {
-                    return scoreB - scoreA;
+                const normalizedDiningHallName = this.normalizeForSearch(diningHallNameElement.textContent);
+                const diningHallMatches = normalizedDiningHallName.includes(normalizedSearch);
+                
+                if (diningHallMatches) {
+                    // Dining hall name matches get highest priority (1000+)
+                    return 1000;
                 }
                 
-                // Then sort alphabetically
-                const nameA = a.dataset.diningHallName || '';
-                const nameB = b.dataset.diningHallName || '';
-                return nameA.localeCompare(nameB);
-            });
+                // Count matching menu items for relevance score
+                const menuItems = card.querySelectorAll('.menu-item:not(.search-filtered)');
+                return menuItems.length; // Number of matching menu items
+            }
         };
-        
-        // Sort non-matching cards alphabetically
-        const sortNonMatchingCards = (cards) => {
-            return cards.sort((a, b) => {
-                const nameA = a.dataset.diningHallName || '';
-                const nameB = b.dataset.diningHallName || '';
-                return nameA.localeCompare(nameB);
-            });
-        };
-        
-        // Sort all categories
-        const sortedOpenMatching = sortCards(openMatchingCards);
-        const sortedClosedMatching = sortCards(closedMatchingCards);
-        const sortedOpenNonMatching = sortNonMatchingCards(openNonMatchingCards);
-        const sortedClosedNonMatching = sortNonMatchingCards(closedNonMatchingCards);
-        
-        console.log(`[Frontend] [SEARCH] Reordering with 4-tier hierarchy:`);
-        console.log(`[Frontend] [SEARCH] 1. Open + Matching: ${sortedOpenMatching.length} cards`);
-        console.log(`[Frontend] [SEARCH] 2. Closed + Matching: ${sortedClosedMatching.length} cards`);
-        console.log(`[Frontend] [SEARCH] 3. Open + Non-matching: ${sortedOpenNonMatching.length} cards`);
-        console.log(`[Frontend] [SEARCH] 4. Closed + Non-matching: ${sortedClosedNonMatching.length} cards`);
-        
-        // Reorder DOM: 4-tier hierarchy
-        // Tier 1: Open dining halls with matches (highest priority)
-        sortedOpenMatching.forEach((card, index) => {
-            console.log(`[Frontend] [SEARCH] Tier 1 - Moving open matching card ${index}:`, card.dataset.diningHallName);
-            container.appendChild(card);
-        });
-        
-        // Tier 2: Closed dining halls with matches (medium-high priority)
-        sortedClosedMatching.forEach((card, index) => {
-            console.log(`[Frontend] [SEARCH] Tier 2 - Moving closed matching card ${index}:`, card.dataset.diningHallName);
-            container.appendChild(card);
-        });
-        
-        // Tier 3: Open dining halls without matches (medium-low priority)
-        sortedOpenNonMatching.forEach((card, index) => {
-            console.log(`[Frontend] [SEARCH] Tier 3 - Moving open non-matching card ${index}:`, card.dataset.diningHallName);
-            container.appendChild(card);
-        });
-        
-        // Tier 4: Closed dining halls without matches (lowest priority)
-        sortedClosedNonMatching.forEach((card, index) => {
-            console.log(`[Frontend] [SEARCH] Tier 4 - Moving closed non-matching card ${index}:`, card.dataset.diningHallName);
-            container.appendChild(card);
-        });
-        
-        console.log('[Frontend] [SEARCH] Finished applying search filter with 4-tier priority ordering');
+
+        this.applyCardOrdering(diningHallCards, searchCondition);
+        console.log('[Frontend] [SEARCH] Search filtering and ordering complete');
     }
 
     updateDayOfWeek() {
@@ -1567,6 +1691,211 @@ class CornellDiningApp {
 
     showAuthModal() {
         document.getElementById('authModal').classList.remove('hidden');
+    }
+
+    // Hearts Management Methods
+    async showHeartsModal() {
+        console.log('[Frontend] [HEARTS] Showing hearts modal');
+        
+        if (!this.user) {
+            this.showAuthModal();
+            return;
+        }
+        
+        // Show the modal
+        document.getElementById('heartsModal').classList.remove('hidden');
+        
+        // Load hearts data
+        await this.loadHeartsData();
+    }
+
+    async loadHeartsData() {
+        console.log('[Frontend] [HEARTS] Loading hearts data');
+        
+        try {
+            // Get both daily and KNN hearts from backend
+            const [dailyResponse, knnResponse] = await Promise.all([
+                fetch(`/api/hearts/daily/${this.user.userId}`),
+                fetch(`/api/hearts/knn/${this.user.userId}`)
+            ]);
+
+            const dailyHearts = await dailyResponse.json();
+            const knnHearts = await knnResponse.json();
+
+            console.log('[Frontend] [HEARTS] Daily hearts:', dailyHearts);
+            console.log('[Frontend] [HEARTS] KNN hearts:', knnHearts);
+
+            // Update stats
+            this.updateHeartsStats(dailyHearts, knnHearts);
+            
+            // Populate tabs
+            this.populateDailyHearts(dailyHearts);
+            this.populateKNNHearts(knnHearts);
+            
+        } catch (error) {
+            console.error('[Frontend] [HEARTS] Error loading hearts data:', error);
+        }
+    }
+
+    updateHeartsStats(dailyHearts, knnHearts) {
+        const dailyCount = (dailyHearts.diningHallHearts || []).length + (dailyHearts.menuItemHearts || []).length;
+        const knnCount = (knnHearts.diningHallHearts || []).length + (knnHearts.menuItemHearts || []).length;
+        const totalCount = dailyCount + knnCount;
+
+        document.getElementById('dailyHeartsCount').textContent = dailyCount;
+        document.getElementById('knnHeartsCount').textContent = knnCount;
+        document.getElementById('totalHeartsCount').textContent = totalCount;
+    }
+
+    populateDailyHearts(dailyHearts) {
+        const container = document.getElementById('dailyHeartsList');
+        container.innerHTML = '';
+
+        const allHearts = [
+            ...(dailyHearts.diningHallHearts || []).map(heart => ({...heart, type: 'dining-hall'})),
+            ...(dailyHearts.menuItemHearts || []).map(heart => ({...heart, type: 'menu-item'}))
+        ];
+
+        if (allHearts.length === 0) {
+            container.innerHTML = `
+                <div class="hearts-empty">
+                    <div class="hearts-empty-icon">💔</div>
+                    <p>No hearts today</p>
+                    <small>Like some dining halls or menu items to see them here!</small>
+                </div>
+            `;
+            return;
+        }
+
+        // Sort by timestamp (newest first)
+        allHearts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        allHearts.forEach(heart => {
+            const heartElement = this.createHeartElement(heart, 'daily');
+            container.appendChild(heartElement);
+        });
+    }
+
+    populateKNNHearts(knnHearts) {
+        const container = document.getElementById('knnHeartsList');
+        container.innerHTML = '';
+
+        const allHearts = [
+            ...(knnHearts.diningHallHearts || []).map(heart => ({...heart, type: 'dining-hall'})),
+            ...(knnHearts.menuItemHearts || []).map(heart => ({...heart, type: 'menu-item'}))
+        ];
+
+        if (allHearts.length === 0) {
+            container.innerHTML = `
+                <div class="hearts-empty">
+                    <div class="hearts-empty-icon">🧠</div>
+                    <p>No historical hearts</p>
+                    <small>Hearts from previous days will appear here</small>
+                </div>
+            `;
+            return;
+        }
+
+        // Sort by timestamp (newest first)
+        allHearts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        allHearts.forEach(heart => {
+            const heartElement = this.createHeartElement(heart, 'knn');
+            container.appendChild(heartElement);
+        });
+    }
+
+    createHeartElement(heart, storage) {
+        const heartDiv = document.createElement('div');
+        heartDiv.className = 'heart-item';
+        
+        const date = new Date(heart.timestamp);
+        const dateStr = date.toLocaleDateString();
+        const timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+        // Find dining hall name if this is a menu item
+        let displayName = heart.name || 'Unknown';
+        let hallName = '';
+        
+        if (heart.type === 'menu-item' && heart.diningHallId) {
+            const hall = this.diningHalls.find(h => h.id === heart.diningHallId);
+            hallName = hall ? hall.name : 'Unknown Hall';
+        }
+
+        heartDiv.innerHTML = `
+            <div class="heart-item-info">
+                <div class="heart-item-name">${displayName}</div>
+                <div class="heart-item-details">
+                    <span class="heart-item-type">${heart.type === 'dining-hall' ? '🏢 Dining Hall' : '🍽️ Menu Item'}</span>
+                    ${hallName ? `<span class="heart-item-hall">at ${hallName}</span>` : ''}
+                    <div class="heart-item-date">${dayName}, ${dateStr} at ${timeStr}</div>
+                </div>
+            </div>
+            <div class="heart-item-actions">
+                <button class="heart-remove-btn" data-heart-id="${heart.id || heart.diningHallId || heart.menuItemId}" data-storage="${storage}" data-type="${heart.type}">
+                    Remove ❤️
+                </button>
+            </div>
+        `;
+
+        // Add remove event listener
+        const removeBtn = heartDiv.querySelector('.heart-remove-btn');
+        removeBtn.addEventListener('click', () => {
+            this.removeHeart(heart, storage);
+        });
+
+        return heartDiv;
+    }
+
+    async removeHeart(heart, storage) {
+        console.log('[Frontend] [HEARTS] Removing heart:', heart, 'from', storage);
+        
+        try {
+            const endpoint = storage === 'daily' ? 'daily' : 'knn';
+            const heartType = heart.type === 'dining-hall' ? 'dining-hall' : 'menu-item';
+            const heartId = heart.id || heart.diningHallId || heart.menuItemId;
+            
+            const response = await fetch(`/api/hearts/${endpoint}/${this.user.userId}/${heartType}/${heartId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                console.log('[Frontend] [HEARTS] Heart removed successfully');
+                
+                // Reload hearts manager data
+                await this.loadHeartsData();
+                
+                // Reload main UI heart data to update heart states
+                await this.loadUserHearts();
+                
+                // Refresh the main UI to reflect the changes
+                this.renderDiningHalls();
+                
+                console.log('[Frontend] [HEARTS] Main UI updated after heart removal');
+            } else {
+                console.error('[Frontend] [HEARTS] Failed to remove heart');
+            }
+        } catch (error) {
+            console.error('[Frontend] [HEARTS] Error removing heart:', error);
+        }
+    }
+
+    switchHeartsTab(tabName) {
+        console.log('[Frontend] [HEARTS] Switching to tab:', tabName);
+        
+        // Update tab buttons
+        document.querySelectorAll('.hearts-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === tabName);
+        });
+
+        // Update tab content
+        document.querySelectorAll('.hearts-tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === `${tabName}HeartsTab`);
+        });
     }
 
 }
