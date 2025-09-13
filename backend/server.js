@@ -19,6 +19,11 @@ fs.ensureDirSync(DATA_DIR);
 // Cornell Dining API endpoint
 const CORNELL_API_BASE = 'https://now.dining.cornell.edu/api/1.0/dining/eateries.json';
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Get today's date in YYYY-MM-DD format
 function getTodayDate() {
     return new Date().toISOString().split('T')[0];
