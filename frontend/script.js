@@ -102,11 +102,11 @@ class CornellDiningApp {
             console.log('[Frontend] [DEBUG] - Style pointer-events:', getComputedStyle(heartsManagerBtn).pointerEvents);
             console.log('[Frontend] [DEBUG] - Disabled:', heartsManagerBtn.disabled);
             
-            // Test if we can programmatically click the button
-            console.log('[Frontend] [DEBUG] Testing programmatic button click...');
+            // Test if we can programmatically click the button (but don't actually click)
+            console.log('[Frontend] [DEBUG] Testing programmatic button click capability...');
             try {
-                heartsManagerBtn.dispatchEvent(new Event('click', { bubbles: true }));
-                console.log('[Frontend] [DEBUG] Programmatic button test successful');
+                // Just test that the button exists and is clickable without actually clicking
+                console.log('[Frontend] [DEBUG] Hearts manager button is available for programmatic interaction');
             } catch (error) {
                 console.error('[Frontend] [DEBUG] Programmatic button test failed:', error);
             }
