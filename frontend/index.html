@@ -14,6 +14,18 @@
         <!-- Header -->
         <header class="header">
             <h1 class="logo">Cornell Dining</h1>
+            
+            <!-- Search Bar -->
+            <div class="search-section">
+                <div class="search-input-group">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search dining halls and menu items...">
+                    <span class="search-icon">🔍</span>
+                    <button type="button" id="clearSearchBtn" class="clear-search-btn hidden">✕</button>
+                </div>
+                <!-- Debug test button -->
+                <button type="button" id="testSearchBtn" style="margin-left: 10px; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">Test Search</button>
+            </div>
+            
             <div class="date-section">
                 <label for="dateSelector" class="date-label">View date:</label>
                 <div class="date-input-group">

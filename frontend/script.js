@@ -16,6 +16,10 @@ class CornellDiningApp {
 
     async init() {
         console.log('[Frontend] Initializing Cornell Dining App...');
+        
+        // Add a small delay to ensure DOM is fully ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         this.bindEvents();
         console.log('[Frontend] Events bound');
         await this.checkAuth();
@@ -41,24 +45,62 @@ class CornellDiningApp {
     }
 
     bindEvents() {
+        console.log('[Frontend] [DEBUG] Starting bindEvents()');
+        console.log('[Frontend] [DEBUG] Document ready state:', document.readyState);
+        console.log('[Frontend] [DEBUG] DOM body exists:', !!document.body);
+        
+        // Debug: Check what's actually in the DOM
+        console.log('[Frontend] [DEBUG] All elements with searchInput:', document.querySelectorAll('#searchInput'));
+        console.log('[Frontend] [DEBUG] All elements with testSearchBtn:', document.querySelectorAll('#testSearchBtn'));
+        console.log('[Frontend] [DEBUG] Document HTML preview:', document.documentElement.outerHTML.substring(0, 500));
+        
         // Date selector change event (don't initialize here - do it after data loads)
-        document.getElementById('dateSelector').addEventListener('change', (e) => {
-            this.selectedDate = e.target.value;
-            this.onDateChange();
-        });
+        const dateSelector = document.getElementById('dateSelector');
+        if (dateSelector) {
+            dateSelector.addEventListener('change', (e) => {
+                this.selectedDate = e.target.value;
+                this.onDateChange();
+            });
+            console.log('[Frontend] [DEBUG] Date selector event bound');
+        } else {
+            console.error('[Frontend] [DEBUG] Could not find dateSelector element');
+        }
         
         // Time selector change event
-        document.getElementById('timeSelector').addEventListener('change', (e) => {
-            this.selectedTime = e.target.value;
-            this.onTimeChange();
-        });
+        const timeSelector = document.getElementById('timeSelector');
+        if (timeSelector) {
+            timeSelector.addEventListener('change', (e) => {
+                this.selectedTime = e.target.value;
+                this.onTimeChange();
+            });
+            console.log('[Frontend] [DEBUG] Time selector event bound');
+        } else {
+            console.error('[Frontend] [DEBUG] Could not find timeSelector element');
+        }
+        
+        // Search input event with retry logic
+        this.bindSearchEvents();
+        
+        // Try binding search events again after a delay
+        setTimeout(() => {
+            console.log('[Frontend] [DEBUG] Retrying search event binding after delay...');
+            this.bindSearchEvents();
+        }, 1000);
         
         // Profile dropdown
-        document.getElementById('profileBtn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            const dropdown = document.getElementById('profileDropdown');
-            dropdown.classList.toggle('hidden');
-        });
+        const profileBtn = document.getElementById('profileBtn');
+        if (profileBtn) {
+            profileBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const dropdown = document.getElementById('profileDropdown');
+                if (dropdown) {
+                    dropdown.classList.toggle('hidden');
+                }
+            });
+            console.log('[Frontend] [DEBUG] Profile button event bound');
+        } else {
+            console.error('[Frontend] [DEBUG] Could not find profileBtn element');
+        }
 
         // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
@@ -96,6 +138,137 @@ class CornellDiningApp {
                 this.signIn();
             }
         });
+        
+        console.log('[Frontend] [DEBUG] bindEvents() complete');
+    }
+
+    bindSearchEvents() {
+        console.log('[Frontend] [SEARCH] [DEBUG] ===== ATTEMPTING TO BIND SEARCH EVENTS =====');
+        
+        // Search input event
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
+        const testSearchBtn = document.getElementById('testSearchBtn');
+        
+        console.log('[Frontend] [SEARCH] [DEBUG] Search input element found:', !!searchInput);
+        console.log('[Frontend] [SEARCH] [DEBUG] Clear search button found:', !!clearSearchBtn);
+        console.log('[Frontend] [SEARCH] [DEBUG] Test search button found:', !!testSearchBtn);
+        
+        if (!searchInput) {
+            console.error('[Frontend] [SEARCH] Could not find search input element with ID "searchInput"');
+            console.error('[Frontend] [SEARCH] Available elements with search-related IDs:');
+            const allElements = document.querySelectorAll('[id*="search"], [class*="search"]');
+            allElements.forEach((el, i) => {
+                console.error(`[Frontend] [SEARCH] Element ${i}: id="${el.id}", class="${el.className}", tag="${el.tagName}"`);
+            });
+            return;
+        }
+        
+        // Check if already bound to avoid double-binding
+        if (searchInput.hasAttribute('data-search-bound')) {
+            console.log('[Frontend] [SEARCH] Search events already bound, skipping');
+            return;
+        }
+        
+        console.log('[Frontend] [SEARCH] Binding search input event listener');
+        console.log('[Frontend] [SEARCH] [DEBUG] Search input type:', searchInput.type);
+        console.log('[Frontend] [SEARCH] [DEBUG] Search input id:', searchInput.id);
+        console.log('[Frontend] [SEARCH] [DEBUG] Search input class:', searchInput.className);
+        
+        const handleSearchChange = (value) => {
+            console.log('[Frontend] [SEARCH] ===== SEARCH EVENT TRIGGERED =====');
+            console.log('[Frontend] [SEARCH] Search input event triggered with value:', `"${value}"`);
+            console.log('[Frontend] [SEARCH] Value type:', typeof value);
+            console.log('[Frontend] [SEARCH] Value length:', value.length);
+            
+            // Show/hide clear button
+            if (clearSearchBtn) {
+                if (value.trim()) {
+                    clearSearchBtn.classList.remove('hidden');
+                    console.log('[Frontend] [SEARCH] Clear button shown');
+                } else {
+                    clearSearchBtn.classList.add('hidden');
+                    console.log('[Frontend] [SEARCH] Clear button hidden');
+                }
+            } else {
+                console.warn('[Frontend] [SEARCH] Clear button not found when trying to toggle');
+            }
+            
+            this.onSearchChange(value);
+            console.log('[Frontend] [SEARCH] ===== SEARCH EVENT COMPLETE =====');
+        };
+        
+        // Test search input directly
+        console.log('[Frontend] [SEARCH] [DEBUG] Testing search input focus...');
+        searchInput.addEventListener('focus', () => {
+            console.log('[Frontend] [SEARCH] [DEBUG] Search input focused!');
+        });
+        
+        searchInput.addEventListener('blur', () => {
+            console.log('[Frontend] [SEARCH] [DEBUG] Search input blurred!');
+        });
+        
+        searchInput.addEventListener('input', (e) => {
+            console.log('[Frontend] [SEARCH] [DEBUG] INPUT event triggered!');
+            handleSearchChange(e.target.value);
+        });
+        
+        // Also bind keyup for additional responsiveness
+        searchInput.addEventListener('keyup', (e) => {
+            console.log('[Frontend] [SEARCH] [DEBUG] KEYUP event triggered!');
+            handleSearchChange(e.target.value);
+        });
+        
+        // Add keydown for immediate feedback
+        searchInput.addEventListener('keydown', (e) => {
+            console.log('[Frontend] [SEARCH] [DEBUG] KEYDOWN event triggered! Key:', e.key);
+        });
+        
+        // Add paste event handling
+        searchInput.addEventListener('paste', (e) => {
+            console.log('[Frontend] [SEARCH] [DEBUG] PASTE event triggered!');
+            // Use setTimeout to get the pasted value after it's been inserted
+            setTimeout(() => {
+                handleSearchChange(e.target.value);
+            }, 10);
+        });
+        
+        // Clear button functionality
+        if (clearSearchBtn) {
+            clearSearchBtn.addEventListener('click', () => {
+                console.log('[Frontend] [SEARCH] Clear button clicked');
+                searchInput.value = '';
+                clearSearchBtn.classList.add('hidden');
+                this.onSearchChange('');
+                searchInput.focus();
+            });
+            console.log('[Frontend] [SEARCH] Clear button event bound');
+        } else {
+            console.warn('[Frontend] [SEARCH] Clear search button not found');
+        }
+        
+        // Test search button for debugging
+        if (testSearchBtn) {
+            testSearchBtn.addEventListener('click', () => {
+                console.log('[Frontend] [SEARCH] [DEBUG] TEST BUTTON CLICKED!');
+                const currentSearchInput = document.getElementById('searchInput');
+                if (currentSearchInput) {
+                    console.log('[Frontend] [SEARCH] [DEBUG] Setting search input value to "burger"');
+                    currentSearchInput.value = 'burger';
+                    console.log('[Frontend] [SEARCH] [DEBUG] Triggering search manually');
+                    this.onSearchChange('burger');
+                } else {
+                    console.error('[Frontend] [SEARCH] [DEBUG] Search input not found during test');
+                }
+            });
+            console.log('[Frontend] [SEARCH] [DEBUG] Test button event bound');
+        } else {
+            console.warn('[Frontend] [SEARCH] [DEBUG] Test search button not found');
+        }
+        
+        // Mark as bound
+        searchInput.setAttribute('data-search-bound', 'true');
+        console.log('[Frontend] [SEARCH] All search events bound successfully');
     }
 
     initializeDateSelector() {
@@ -129,6 +302,222 @@ class CornellDiningApp {
         this.renderDiningHalls();
         // Also reload recommendations with new time
         this.loadRecommendations();
+    }
+
+    onSearchChange(searchTerm) {
+        console.log('[Frontend] [SEARCH] Search term changed to:', `"${searchTerm}"`);
+        console.log('[Frontend] [SEARCH] Search term length:', searchTerm.length);
+        console.log('[Frontend] [SEARCH] Search term normalized:', `"${searchTerm.toLowerCase().trim()}"`);
+        this.applySearchFilter(searchTerm);
+    }
+
+    applySearchFilter(searchTerm) {
+        console.log('[Frontend] [SEARCH] Starting applySearchFilter with term:', `"${searchTerm}"`);
+        
+        const normalizedSearch = searchTerm.toLowerCase().trim();
+        console.log('[Frontend] [SEARCH] Normalized search term:', `"${normalizedSearch}"`);
+        
+        const diningHallCards = document.querySelectorAll('.dining-hall-card');
+        console.log('[Frontend] [SEARCH] Found dining hall cards:', diningHallCards.length);
+        
+        if (!normalizedSearch) {
+            console.log('[Frontend] [SEARCH] Empty search term - clearing all filters');
+            // No search term - show everything normally in alphabetical order
+            const sortedCards = Array.from(diningHallCards).sort((a, b) => {
+                const nameElementA = a.querySelector('.dining-hall-name');
+                const nameElementB = b.querySelector('.dining-hall-name');
+                
+                if (!nameElementA || !nameElementB) return 0;
+                
+                const nameA = nameElementA.textContent.toLowerCase();
+                const nameB = nameElementB.textContent.toLowerCase();
+                return nameA.localeCompare(nameB);
+            });
+            
+            const container = document.getElementById('diningHallsList');
+            if (container) {
+                sortedCards.forEach((card) => {
+                    card.classList.remove('search-filtered');
+                    const menuItems = card.querySelectorAll('.menu-item');
+                    menuItems.forEach((item) => {
+                        item.classList.remove('search-filtered');
+                    });
+                    container.appendChild(card);
+                });
+            }
+            console.log('[Frontend] [SEARCH] Finished clearing all filters');
+            return;
+        }
+
+        console.log('[Frontend] [SEARCH] Processing search with non-empty term');
+        
+        // Get container for reordering
+        const container = document.getElementById('diningHallsList');
+        if (!container) {
+            console.error('[Frontend] [SEARCH] Could not find dining halls list container');
+            return;
+        }
+        
+        // Analyze each card for matches and open/closed status
+        const openMatchingCards = [];
+        const closedMatchingCards = [];
+        const openNonMatchingCards = [];
+        const closedNonMatchingCards = [];
+        
+        Array.from(diningHallCards).forEach((card, cardIndex) => {
+            const diningHallNameElement = card.querySelector('.dining-hall-name');
+            if (!diningHallNameElement) {
+                console.warn(`[Frontend] [SEARCH] Card ${cardIndex} missing dining hall name element`);
+                closedNonMatchingCards.push(card);
+                return;
+            }
+            
+            const diningHallName = diningHallNameElement.textContent.toLowerCase();
+            console.log(`[Frontend] [SEARCH] Processing card ${cardIndex}: "${diningHallName}"`);
+            
+            // Check if dining hall is open or closed
+            const isOpen = !card.classList.contains('closed-hall');
+            const statusElement = card.querySelector('.dining-hall-status');
+            const statusText = statusElement ? statusElement.textContent.toLowerCase() : '';
+            const isActuallyOpen = isOpen && !statusText.includes('closed');
+            
+            console.log(`[Frontend] [SEARCH] Card ${cardIndex} open status:`, isActuallyOpen);
+            
+            const menuItems = card.querySelectorAll('.menu-item');
+            console.log(`[Frontend] [SEARCH] Card ${cardIndex} has ${menuItems.length} menu items`);
+            
+            let diningHallMatches = diningHallName.includes(normalizedSearch);
+            console.log(`[Frontend] [SEARCH] Dining hall "${diningHallName}" matches "${normalizedSearch}":`, diningHallMatches);
+            
+            let hasMatchingMenuItems = false;
+            let matchingMenuItemsCount = 0;
+
+            // Check menu items and apply filtering
+            menuItems.forEach((menuItem, menuIndex) => {
+                const menuItemNameElement = menuItem.querySelector('.menu-item-name');
+                if (!menuItemNameElement) {
+                    console.warn(`[Frontend] [SEARCH] Menu item ${menuIndex} in card ${cardIndex} missing name element`);
+                    menuItem.classList.add('search-filtered');
+                    return;
+                }
+                
+                const menuItemName = menuItemNameElement.textContent.toLowerCase();
+                const menuItemMatches = menuItemName.includes(normalizedSearch);
+                
+                console.log(`[Frontend] [SEARCH] Menu item ${menuIndex} "${menuItemName}" matches "${normalizedSearch}":`, menuItemMatches);
+                
+                if (menuItemMatches) {
+                    hasMatchingMenuItems = true;
+                    matchingMenuItemsCount++;
+                    menuItem.classList.remove('search-filtered');
+                    console.log(`[Frontend] [SEARCH] Removed filter from menu item ${menuIndex}`);
+                } else {
+                    menuItem.classList.add('search-filtered');
+                    console.log(`[Frontend] [SEARCH] Added filter to menu item ${menuIndex}`);
+                }
+            });
+
+            console.log(`[Frontend] [SEARCH] Card ${cardIndex} has matching menu items:`, hasMatchingMenuItems);
+
+            // Determine if this card has any matches
+            const cardHasMatches = diningHallMatches || hasMatchingMenuItems;
+            
+            if (cardHasMatches) {
+                card.classList.remove('search-filtered');
+                // Store metadata for sorting
+                card.dataset.searchScore = diningHallMatches ? 1000 : matchingMenuItemsCount; // Dining hall name matches get highest priority
+                card.dataset.diningHallName = diningHallName;
+                card.dataset.isOpen = isActuallyOpen;
+                
+                // Categorize by open/closed status
+                if (isActuallyOpen) {
+                    openMatchingCards.push(card);
+                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to OPEN MATCHING (score: ${card.dataset.searchScore})`);
+                } else {
+                    closedMatchingCards.push(card);
+                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to CLOSED MATCHING (score: ${card.dataset.searchScore})`);
+                }
+            } else {
+                card.classList.add('search-filtered');
+                card.dataset.diningHallName = diningHallName;
+                card.dataset.isOpen = isActuallyOpen;
+                
+                // Categorize by open/closed status
+                if (isActuallyOpen) {
+                    openNonMatchingCards.push(card);
+                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to OPEN NON-MATCHING (filtered)`);
+                } else {
+                    closedNonMatchingCards.push(card);
+                    console.log(`[Frontend] [SEARCH] Card ${cardIndex} added to CLOSED NON-MATCHING (filtered)`);
+                }
+            }
+        });
+        
+        // Sort each category by relevance (dining hall name matches first, then by number of menu matches, then alphabetically)
+        const sortCards = (cards) => {
+            return cards.sort((a, b) => {
+                const scoreA = parseInt(a.dataset.searchScore) || 0;
+                const scoreB = parseInt(b.dataset.searchScore) || 0;
+                
+                // First sort by search score (higher is better)
+                if (scoreA !== scoreB) {
+                    return scoreB - scoreA;
+                }
+                
+                // Then sort alphabetically
+                const nameA = a.dataset.diningHallName || '';
+                const nameB = b.dataset.diningHallName || '';
+                return nameA.localeCompare(nameB);
+            });
+        };
+        
+        // Sort non-matching cards alphabetically
+        const sortNonMatchingCards = (cards) => {
+            return cards.sort((a, b) => {
+                const nameA = a.dataset.diningHallName || '';
+                const nameB = b.dataset.diningHallName || '';
+                return nameA.localeCompare(nameB);
+            });
+        };
+        
+        // Sort all categories
+        const sortedOpenMatching = sortCards(openMatchingCards);
+        const sortedClosedMatching = sortCards(closedMatchingCards);
+        const sortedOpenNonMatching = sortNonMatchingCards(openNonMatchingCards);
+        const sortedClosedNonMatching = sortNonMatchingCards(closedNonMatchingCards);
+        
+        console.log(`[Frontend] [SEARCH] Reordering with 4-tier hierarchy:`);
+        console.log(`[Frontend] [SEARCH] 1. Open + Matching: ${sortedOpenMatching.length} cards`);
+        console.log(`[Frontend] [SEARCH] 2. Closed + Matching: ${sortedClosedMatching.length} cards`);
+        console.log(`[Frontend] [SEARCH] 3. Open + Non-matching: ${sortedOpenNonMatching.length} cards`);
+        console.log(`[Frontend] [SEARCH] 4. Closed + Non-matching: ${sortedClosedNonMatching.length} cards`);
+        
+        // Reorder DOM: 4-tier hierarchy
+        // Tier 1: Open dining halls with matches (highest priority)
+        sortedOpenMatching.forEach((card, index) => {
+            console.log(`[Frontend] [SEARCH] Tier 1 - Moving open matching card ${index}:`, card.dataset.diningHallName);
+            container.appendChild(card);
+        });
+        
+        // Tier 2: Closed dining halls with matches (medium-high priority)
+        sortedClosedMatching.forEach((card, index) => {
+            console.log(`[Frontend] [SEARCH] Tier 2 - Moving closed matching card ${index}:`, card.dataset.diningHallName);
+            container.appendChild(card);
+        });
+        
+        // Tier 3: Open dining halls without matches (medium-low priority)
+        sortedOpenNonMatching.forEach((card, index) => {
+            console.log(`[Frontend] [SEARCH] Tier 3 - Moving open non-matching card ${index}:`, card.dataset.diningHallName);
+            container.appendChild(card);
+        });
+        
+        // Tier 4: Closed dining halls without matches (lowest priority)
+        sortedClosedNonMatching.forEach((card, index) => {
+            console.log(`[Frontend] [SEARCH] Tier 4 - Moving closed non-matching card ${index}:`, card.dataset.diningHallName);
+            container.appendChild(card);
+        });
+        
+        console.log('[Frontend] [SEARCH] Finished applying search filter with 4-tier priority ordering');
     }
 
     updateDayOfWeek() {
@@ -617,6 +1006,15 @@ class CornellDiningApp {
             const card = this.createDiningHallCard(hall, openHalls.length + index, true);
             list.appendChild(card);
         });
+
+        // Apply current search filter after rendering
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput && searchInput.value.trim()) {
+            console.log('[Frontend] [SEARCH] Re-applying search filter after render with term:', `"${searchInput.value}"`);
+            this.applySearchFilter(searchInput.value);
+        } else {
+            console.log('[Frontend] [SEARCH] No search term to re-apply after render');
+        }
     }
 
     createRecommendationContent() {
