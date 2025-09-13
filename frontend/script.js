@@ -1010,11 +1010,25 @@ class CornellDiningApp {
     }
 
     async loadDiningData(retryCount = 0) {
-        const maxRetries = 3;
+        const maxRetries = 5; // Increased for cold starts
         const loadingScreen = document.getElementById('loadingScreen');
         loadingScreen.classList.remove('hidden');
 
         try {
+            // For cold start scenarios, ping the backend first to wake it up
+            if (retryCount === 0) {
+                console.log('[Frontend] Performing backend health check...');
+                try {
+                    const healthCheck = await fetch('/api/health', { 
+                        method: 'GET',
+                        headers: { 'Cache-Control': 'no-cache' }
+                    });
+                    console.log('[Frontend] Health check status:', healthCheck.status);
+                } catch (healthError) {
+                    console.log('[Frontend] Health check failed, proceeding with main request anyway');
+                }
+            }
+            
             // For initial load, get data without a specific date to get the full range
             // For subsequent loads, use the selected date
             const isInitialLoad = this.availableDates.length === 0;
@@ -1022,20 +1036,30 @@ class CornellDiningApp {
             
             console.log(`[Frontend] Fetching dining data from backend for date: ${isInitialLoad ? 'all dates' : this.selectedDate} (attempt ${retryCount + 1}/${maxRetries + 1})`);
             
-            // Add timeout and retry logic
+            // Progressive timeout for cold starts - longer timeout for first attempts
+            const baseTimeout = retryCount === 0 ? 30000 : (retryCount === 1 ? 25000 : 20000); // 30s, 25s, then 20s
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), baseTimeout);
             
-            const response = await fetch(url, { 
+            // Add a timestamp to prevent browser caching of failed requests
+            const urlWithTimestamp = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
+            
+            const response = await fetch(urlWithTimestamp, { 
                 signal: controller.signal,
                 headers: {
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
                 }
             });
             
             clearTimeout(timeoutId);
             console.log('[Frontend] Response status:', response.status);
+            
+            // Handle specific status codes that indicate cold start issues
+            if (response.status === 502 || response.status === 503 || response.status === 504) {
+                throw new Error(`Cold start error! status: ${response.status} - Backend is starting up`);
+            }
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -1090,12 +1114,28 @@ class CornellDiningApp {
             console.error(`[Frontend] Error loading dining data (attempt ${retryCount + 1}):`, error);
             console.error('[Frontend] Error stack:', error.stack);
             
-            // Retry logic
+            // Determine if this looks like a cold start issue
+            const isColdStartError = error.message.includes('Cold start') || 
+                                   error.message.includes('502') || 
+                                   error.message.includes('503') || 
+                                   error.message.includes('504') ||
+                                   error.name === 'AbortError';
+            
+            // Retry logic with longer delays for cold starts
             if (retryCount < maxRetries) {
-                const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
-                console.log(`[Frontend] Retrying in ${retryDelay}ms...`);
+                // Cold start errors get longer delays, especially early attempts
+                let retryDelay;
+                if (isColdStartError) {
+                    // For cold starts: 3s, 5s, 8s, 12s, 15s
+                    retryDelay = Math.min(3000 + (retryCount * 2000) + (retryCount * retryCount * 1000), 15000);
+                } else {
+                    // For other errors: 1s, 2s, 4s, 8s, 10s
+                    retryDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+                }
                 
-                this.showRetryMessage(retryCount + 1, maxRetries + 1);
+                console.log(`[Frontend] ${isColdStartError ? 'Cold start detected.' : 'Network error.'} Retrying in ${retryDelay}ms...`);
+                
+                this.showRetryMessage(retryCount + 1, maxRetries + 1, isColdStartError);
                 
                 setTimeout(() => {
                     this.loadDiningData(retryCount + 1);
@@ -1106,7 +1146,7 @@ class CornellDiningApp {
             
             // All retries exhausted
             loadingScreen.classList.add('hidden');
-            this.showPersistentError();
+            this.showPersistentError(isColdStartError);
         }
     }
 
@@ -1117,32 +1157,65 @@ class CornellDiningApp {
         }
     }
 
-    showRetryMessage(currentAttempt, maxAttempts) {
+    showRetryMessage(currentAttempt, maxAttempts, isColdStart = false) {
         this.clearErrorMessage();
         
         const errorBanner = document.createElement('div');
         errorBanner.className = 'error-banner retry-banner';
+        
+        const message = isColdStart 
+            ? `Starting up server... (Attempt ${currentAttempt}/${maxAttempts})`
+            : `Loading dining data... (Attempt ${currentAttempt}/${maxAttempts})`;
+            
         errorBanner.innerHTML = `
             <div class="error-content">
-                <span>Loading dining data... (Attempt ${currentAttempt}/${maxAttempts})</span>
+                <span>${message}</span>
                 <div class="loading-spinner"></div>
             </div>
         `;
         document.body.appendChild(errorBanner);
     }
 
-    showPersistentError() {
+    showPersistentError(isColdStart = false) {
         this.clearErrorMessage();
         
         const errorBanner = document.createElement('div');
         errorBanner.className = 'error-banner persistent-error';
+        
+        const message = isColdStart
+            ? 'Server startup is taking longer than expected. Please wait a moment and try again.'
+            : 'Failed to load dining data. Please check your connection and try again.';
+        
         errorBanner.innerHTML = `
             <div class="error-content">
-                <span>Failed to load dining data. Please check your connection and try again.</span>
-                <button onclick="window.location.reload()" class="retry-button">Retry</button>
+                <span>${message}</span>
+                <button onclick="eateries.forceReload()" class="retry-button">Retry</button>
             </div>
         `;
         document.body.appendChild(errorBanner);
+    }
+
+    // Force a hard reload that clears browser cache and state
+    forceReload() {
+        console.log('[Frontend] Forcing hard reload to clear cached error state');
+        
+        // Clear any stored data
+        this.diningHalls = [];
+        this.availableDates = [];
+        this.originalEateries = [];
+        this.recommendations = [];
+        
+        // Clear any cached responses
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                names.forEach(name => {
+                    caches.delete(name);
+                });
+            });
+        }
+        
+        // Force reload with cache bypass
+        window.location.reload(true);
     }
 
     cleanDescription(aboutText) {
@@ -2174,5 +2247,5 @@ class CornellDiningApp {
 
 // Initialize the app when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    new CornellDiningApp();
+    window.eateries = new CornellDiningApp();
 });
