@@ -83,11 +83,12 @@ class CornellDiningApp {
             console.log('[Frontend] [DEBUG] Testing programmatic interaction...');
             try {
                 const originalValue = searchInput.value;
+                // Temporarily set and clear the value without persisting it
                 searchInput.value = 'TEST';
                 searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-                setTimeout(() => {
-                    searchInput.value = originalValue;
-                }, 100);
+                // Immediately restore original value
+                searchInput.value = originalValue;
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
                 console.log('[Frontend] [DEBUG] Programmatic test successful');
             } catch (error) {
                 console.error('[Frontend] [DEBUG] Programmatic test failed:', error);
