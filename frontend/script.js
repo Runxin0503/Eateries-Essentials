@@ -835,21 +835,59 @@ class CornellDiningApp {
     }
 
     async checkAuth() {
+        console.log('[Frontend] [AUTH] Starting auth check for deviceId:', this.deviceId);
+        
         try {
+            console.log('[Frontend] [AUTH] Making auth check request...');
             const response = await fetch(`/api/auth/check/${this.deviceId}`);
+            console.log('[Frontend] [AUTH] Auth check response status:', response.status);
+            
+            if (response.status === 502 || response.status === 503 || response.status === 504) {
+                console.log('[Frontend] [AUTH] Cold start detected during auth check, retrying...');
+                // Wait a bit and retry once for cold start
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const retryResponse = await fetch(`/api/auth/check/${this.deviceId}`);
+                console.log('[Frontend] [AUTH] Auth retry response status:', retryResponse.status);
+                
+                if (retryResponse.ok) {
+                    const retryData = await retryResponse.json();
+                    console.log('[Frontend] [AUTH] Auth retry data:', retryData);
+                    
+                    if (retryData.signedIn) {
+                        this.user = retryData.user;
+                        console.log('[Frontend] [AUTH] User authenticated after retry:', this.user);
+                        this.updateUIForSignedInUser();
+                        await this.loadUserHearts();
+                        return;
+                    }
+                }
+                
+                console.log('[Frontend] [AUTH] Auth retry failed or user not signed in');
+                this.updateUIForSignedOutUser();
+                return;
+            }
+            
+            if (!response.ok) {
+                console.log('[Frontend] [AUTH] Auth check failed with status:', response.status);
+                this.updateUIForSignedOutUser();
+                return;
+            }
+            
             const data = await response.json();
+            console.log('[Frontend] [AUTH] Auth check data:', data);
             
             if (data.signedIn) {
                 this.user = data.user;
+                console.log('[Frontend] [AUTH] User authenticated:', this.user);
                 this.updateUIForSignedInUser();
                 await this.loadUserHearts();
             } else {
-                // Explicitly set UI for signed out state
+                console.log('[Frontend] [AUTH] User not signed in');
                 this.updateUIForSignedOutUser();
             }
         } catch (error) {
-            console.error('Error checking auth:', error);
-            // If there's an error, assume signed out
+            console.error('[Frontend] [AUTH] Error checking auth:', error);
+            console.log('[Frontend] [AUTH] Setting signed out state due to error');
             this.updateUIForSignedOutUser();
         }
     }
@@ -907,7 +945,8 @@ class CornellDiningApp {
     }
 
     updateUIForSignedInUser() {
-        console.log('[Frontend] Updating UI for signed in user:', this.user.name);
+        console.log('[Frontend] [AUTH] Updating UI for signed in user:', this.user.name);
+        console.log('[Frontend] [AUTH] User object:', this.user);
         document.getElementById('profileName').textContent = this.user.name;
         document.getElementById('signInForm').classList.add('hidden');
         document.getElementById('userInfo').classList.remove('hidden');
@@ -915,7 +954,7 @@ class CornellDiningApp {
     }
 
     updateUIForSignedOutUser() {
-        console.log('[Frontend] Updating UI for signed out state');
+        console.log('[Frontend] [AUTH] Updating UI for signed out state');
         document.getElementById('profileName').textContent = 'Sign In';
         document.getElementById('signInForm').classList.remove('hidden');
         document.getElementById('userInfo').classList.add('hidden');
@@ -924,8 +963,13 @@ class CornellDiningApp {
     }
 
     async loadUserHearts() {
-        if (!this.user) return;
+        if (!this.user) {
+            console.log('[Frontend] [AUTH] No user found, skipping heart loading');
+            return;
+        }
 
+        console.log('[Frontend] [AUTH] Loading hearts for user:', this.user.userId);
+        
         try {
             // Load both simple hearts (for compatibility) and detailed hearts
             const [simpleResponse, detailedResponse] = await Promise.all([
@@ -933,13 +977,19 @@ class CornellDiningApp {
                 fetch(`/api/hearts/${this.user.userId}/detailed`)
             ]);
             
+            console.log('[Frontend] [AUTH] Hearts response statuses:', {
+                simple: simpleResponse.status,
+                detailed: detailedResponse.status
+            });
+            
             const simpleData = await simpleResponse.json();
             const detailedData = await detailedResponse.json();
             
             this.userHearts = simpleData;
             this.userDetailedHearts = detailedData;
             
-            console.log('[Frontend] Loaded detailed hearts:', detailedData);
+            console.log('[Frontend] [AUTH] Loaded simple hearts:', simpleData);
+            console.log('[Frontend] [AUTH] Loaded detailed hearts:', detailedData);
         } catch (error) {
             console.error('Error loading user hearts:', error);
         }
@@ -976,11 +1026,16 @@ class CornellDiningApp {
     }
 
     async loadRecommendations() {
+        console.log('[Frontend] [RECOMMENDATIONS] Starting loadRecommendations, user:', this.user);
+        
         if (!this.user) {
+            console.log('[Frontend] [RECOMMENDATIONS] No user found, setting recommendations to empty');
             this.recommendations = [];
             return;
         }
 
+        console.log('[Frontend] [RECOMMENDATIONS] User found, proceeding with recommendation loading');
+        
         try {
             const now = new Date();
             let time, day;
@@ -995,18 +1050,25 @@ class CornellDiningApp {
                 day = now.getDay();
             }
             
+            console.log('[Frontend] [RECOMMENDATIONS] Request parameters:', { userId: this.user.userId, time, day });
+            
             const response = await fetch(`/api/recommendations/${this.user.userId}?time=${time}&day=${day}`);
+            console.log('[Frontend] [RECOMMENDATIONS] Response status:', response.status);
+            
             const data = await response.json();
+            console.log('[Frontend] [RECOMMENDATIONS] Response data:', data);
             
             if (data.success) {
                 this.recommendations = data.recommendations;
+                console.log('[Frontend] [RECOMMENDATIONS] Loaded recommendations:', this.recommendations);
                 // Sort recommendations by priority (open status + confidence)
                 this.sortRecommendationsByPriority();
             } else {
+                console.log('[Frontend] [RECOMMENDATIONS] Request unsuccessful, setting empty recommendations');
                 this.recommendations = [];
             }
         } catch (error) {
-            console.error('Error loading recommendations:', error);
+            console.error('[Frontend] [RECOMMENDATIONS] Error loading recommendations:', error);
             this.recommendations = [];
         }
     }
@@ -1724,7 +1786,6 @@ class CornellDiningApp {
     isDiningHallOpenAtTime(hall) {
         // Check if the dining hall is open at the specified time
         if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
-            console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: No operating hours`);
             return false;
         }
         
@@ -1732,7 +1793,6 @@ class CornellDiningApp {
         const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
         
         if (!selectedDateSchedule || !selectedDateSchedule.events) {
-            console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: No schedule for date ${this.selectedDate}`);
             return false;
         }
         
@@ -1744,13 +1804,9 @@ class CornellDiningApp {
         }
         const selectedMinutes = this.timeToMinutes(timeToCheck);
         
-        console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Checking time ${timeToCheck} (${selectedMinutes} minutes) on ${this.selectedDate}`);
-        console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Found ${selectedDateSchedule.events.length} events:`, selectedDateSchedule.events);
-        
         // Check if any event contains the specified time
         const isOpen = selectedDateSchedule.events.some(event => {
             if (!event.start || !event.end) {
-                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Event missing start/end:`, event);
                 return false;
             }
             
@@ -1759,27 +1815,21 @@ class CornellDiningApp {
             const eventEndMinutes = this.parseEventTime(event.end);
             
             if (eventStartMinutes === null || eventEndMinutes === null) {
-                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Failed to parse times: ${event.start} -> ${eventStartMinutes}, ${event.end} -> ${eventEndMinutes}`);
                 return false;
             }
-            
-            console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Event ${event.start}-${event.end} = ${eventStartMinutes}-${eventEndMinutes} minutes`);
             
             // Handle times that span across midnight (e.g., 8:00am to 2:00am next day)
             if (eventEndMinutes < eventStartMinutes) {
                 // Time spans across midnight
                 const isInRange = selectedMinutes >= eventStartMinutes || selectedMinutes <= eventEndMinutes;
-                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Midnight-spanning range, in range: ${isInRange}`);
                 return isInRange;
             } else {
                 // Normal time range (no midnight crossing)
                 const isInRange = selectedMinutes >= eventStartMinutes && selectedMinutes <= eventEndMinutes;
-                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Normal range, in range: ${isInRange}`);
                 return isInRange;
             }
         });
         
-        console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Final result: ${isOpen}`);
         return isOpen;
     }
 
