@@ -1118,7 +1118,13 @@ class CornellDiningApp {
             });
 
             console.log('[Frontend] Final processed dining halls:', this.diningHalls.length);
-            loadingScreen.classList.add('hidden');
+            
+            // Hide loading screen and clear any retry messages
+            if (loadingScreen) {
+                loadingScreen.classList.add('hidden');
+                loadingScreen.style.display = 'none';
+                console.log('[Frontend] [UI] Loading screen hidden after successful data load');
+            }
             
             // Clear any existing error messages
             this.clearErrorMessage();
@@ -1169,7 +1175,11 @@ class CornellDiningApp {
             }
             
             // All retries exhausted
-            loadingScreen.classList.add('hidden');
+            if (loadingScreen) {
+                loadingScreen.classList.add('hidden');
+                loadingScreen.style.display = 'none';
+                console.log('[Frontend] [UI] Loading screen hidden after all retries exhausted');
+            }
             this.showPersistentError(isColdStartError);
         }
     }
