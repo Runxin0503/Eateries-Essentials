@@ -1160,12 +1160,17 @@ class CornellDiningApp {
                 
                 console.log(`[Frontend] ${isColdStartError ? 'Cold start detected.' : 'Network error.'} Retrying in ${retryDelay}ms...`);
                 
-                this.showRetryMessage(retryCount + 1, maxRetries + 1, isColdStartError);
-                
-                // Force a reflow to ensure the banner appears immediately
-                document.body.offsetHeight;
-                
-                console.log('🎯 UI feedback shown, starting retry delay...');
+                // Only show retry message on first attempt to avoid updating the banner repeatedly
+                if (retryCount === 0) {
+                    this.showRetryMessage(retryCount + 1, maxRetries + 1, isColdStartError);
+                    
+                    // Force a reflow to ensure the banner appears immediately
+                    document.body.offsetHeight;
+                    
+                    console.log('🎯 UI feedback shown, starting retry delay...');
+                } else {
+                    console.log('🎯 Continuing with existing UI feedback, starting retry delay...');
+                }
                 
                 // Use Promise-based delay instead of setTimeout to properly block
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -2115,7 +2120,7 @@ class CornellDiningApp {
         console.log('[Frontend] [HEARTS] Loading hearts data');
         
         try {
-            // Get both daily and KNN hearts from backend
+            // Get both daily and saved favorites from backend
             const [dailyResponse, knnResponse] = await Promise.all([
                 fetch(`/api/hearts/daily/${this.user.userId}`),
                 fetch(`/api/hearts/knn/${this.user.userId}`)
@@ -2125,7 +2130,7 @@ class CornellDiningApp {
             const knnHearts = await knnResponse.json();
 
             console.log('[Frontend] [HEARTS] Daily hearts:', dailyHearts);
-            console.log('[Frontend] [HEARTS] KNN hearts:', knnHearts);
+            console.log('[Frontend] [HEARTS] Saved favorites:', knnHearts);
 
             // Update stats
             this.updateHeartsStats(dailyHearts, knnHearts);
