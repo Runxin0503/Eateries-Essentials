@@ -1724,6 +1724,7 @@ class CornellDiningApp {
     isDiningHallOpenAtTime(hall) {
         // Check if the dining hall is open at the specified time
         if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+            console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: No operating hours`);
             return false;
         }
         
@@ -1731,6 +1732,7 @@ class CornellDiningApp {
         const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
         
         if (!selectedDateSchedule || !selectedDateSchedule.events) {
+            console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: No schedule for date ${this.selectedDate}`);
             return false;
         }
         
@@ -1742,28 +1744,43 @@ class CornellDiningApp {
         }
         const selectedMinutes = this.timeToMinutes(timeToCheck);
         
+        console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Checking time ${timeToCheck} (${selectedMinutes} minutes) on ${this.selectedDate}`);
+        console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Found ${selectedDateSchedule.events.length} events:`, selectedDateSchedule.events);
+        
         // Check if any event contains the specified time
-        return selectedDateSchedule.events.some(event => {
-            if (!event.start || !event.end) return false;
+        const isOpen = selectedDateSchedule.events.some(event => {
+            if (!event.start || !event.end) {
+                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Event missing start/end:`, event);
+                return false;
+            }
             
             // Parse event times (format like "8:00am" or "11:00pm")
             const eventStartMinutes = this.parseEventTime(event.start);
             const eventEndMinutes = this.parseEventTime(event.end);
             
-            if (eventStartMinutes === null || eventEndMinutes === null) return false;
+            if (eventStartMinutes === null || eventEndMinutes === null) {
+                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Failed to parse times: ${event.start} -> ${eventStartMinutes}, ${event.end} -> ${eventEndMinutes}`);
+                return false;
+            }
+            
+            console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Event ${event.start}-${event.end} = ${eventStartMinutes}-${eventEndMinutes} minutes`);
             
             // Handle times that span across midnight (e.g., 8:00am to 2:00am next day)
             if (eventEndMinutes < eventStartMinutes) {
                 // Time spans across midnight
-                // Check if selected time is either:
-                // 1. After start time (same day), OR
-                // 2. Before end time (next day)
-                return selectedMinutes >= eventStartMinutes || selectedMinutes <= eventEndMinutes;
+                const isInRange = selectedMinutes >= eventStartMinutes || selectedMinutes <= eventEndMinutes;
+                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Midnight-spanning range, in range: ${isInRange}`);
+                return isInRange;
             } else {
                 // Normal time range (no midnight crossing)
-                return selectedMinutes >= eventStartMinutes && selectedMinutes <= eventEndMinutes;
+                const isInRange = selectedMinutes >= eventStartMinutes && selectedMinutes <= eventEndMinutes;
+                console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Normal range, in range: ${isInRange}`);
+                return isInRange;
             }
         });
+        
+        console.log(`[DEBUG] [OPEN_CHECK] ${hall.name}: Final result: ${isOpen}`);
+        return isOpen;
     }
 
     timeToMinutes(timeString) {
