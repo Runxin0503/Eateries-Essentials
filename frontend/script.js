@@ -1024,12 +1024,8 @@ class CornellDiningApp {
             if (retryCount === 0) {
                 console.log('[Frontend] Performing backend health check...');
                 try {
-                    const healthController = new AbortController();
-                    setTimeout(() => healthController.abort(), 5000); // Short timeout for health check
-                    
                     const healthCheck = await fetch('/api/health', { 
                         method: 'GET',
-                        signal: healthController.signal,
                         headers: { 'Cache-Control': 'no-cache' }
                     });
                     console.log('[Frontend] Health check status:', healthCheck.status);
@@ -1048,23 +1044,17 @@ class CornellDiningApp {
             
             console.log(`[Frontend] Fetching dining data from backend for date: ${isInitialLoad ? 'all dates' : this.selectedDate}`);
             
-            // Use a long timeout for cold starts - 60 seconds should be enough
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-            
+            // No timeout - wait indefinitely for backend to respond
             // Add a timestamp to prevent browser caching of failed requests
             const urlWithTimestamp = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
             
             const response = await fetch(urlWithTimestamp, { 
-                signal: controller.signal,
                 headers: {
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache',
                     'Expires': '0'
                 }
             });
-            
-            clearTimeout(timeoutId);
             console.log('[Frontend] Response status:', response.status);
             
             // Handle specific status codes that indicate cold start issues
@@ -1136,7 +1126,6 @@ class CornellDiningApp {
                                    error.message.includes('502') || 
                                    error.message.includes('503') || 
                                    error.message.includes('504') ||
-                                   error.name === 'AbortError' ||
                                    error.message.includes('Failed to fetch');
             
             console.log(`[Frontend] Is cold start error: ${isColdStartError}`);
