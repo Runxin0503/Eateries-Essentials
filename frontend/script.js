@@ -1000,6 +1000,8 @@ class CornellDiningApp {
             
             if (data.success) {
                 this.recommendations = data.recommendations;
+                // Sort recommendations by priority (open status + confidence)
+                this.sortRecommendationsByPriority();
             } else {
                 this.recommendations = [];
             }
@@ -1009,8 +1011,47 @@ class CornellDiningApp {
         }
     }
 
+    sortRecommendationsByPriority() {
+        if (!this.recommendations || this.recommendations.length === 0) return;
+        
+        this.recommendations.sort((a, b) => {
+            // Find the dining halls for comparison
+            const hallA = this.diningHalls.find(h => String(h.id) === String(a.diningHallId));
+            const hallB = this.diningHalls.find(h => String(h.id) === String(b.diningHallId));
+            
+            if (!hallA || !hallB) return 0;
+            
+            // Check if halls are open
+            const isOpenA = this.isDiningHallOpenAtTime(hallA);
+            const isOpenB = this.isDiningHallOpenAtTime(hallB);
+            
+            // Weight constants for priority calculation
+            const OPEN_WEIGHT = 2.0;        // Open halls get 2x weight
+            const CONFIDENCE_WEIGHT = 1.0;   // Base confidence weight
+            
+            // Calculate priority scores
+            const priorityA = (isOpenA ? OPEN_WEIGHT : 0.3) * CONFIDENCE_WEIGHT * a.confidence;
+            const priorityB = (isOpenB ? OPEN_WEIGHT : 0.3) * CONFIDENCE_WEIGHT * b.confidence;
+            
+            console.log(`[Frontend] [PRIORITY] ${hallA.name}: open=${isOpenA}, conf=${a.confidence}, priority=${priorityA.toFixed(2)}`);
+            console.log(`[Frontend] [PRIORITY] ${hallB.name}: open=${isOpenB}, conf=${b.confidence}, priority=${priorityB.toFixed(2)}`);
+            
+            // Sort by priority (higher priority first)
+            return priorityB - priorityA;
+        });
+        
+        console.log(`[Frontend] [PRIORITY] Sorted recommendations:`, this.recommendations.map(r => {
+            const hall = this.diningHalls.find(h => String(h.id) === String(r.diningHallId));
+            return {
+                name: hall?.name || `Hall ${r.diningHallId}`,
+                confidence: r.confidence,
+                isOpen: hall ? this.isDiningHallOpenAtTime(hall) : false
+            };
+        }));
+    }
+
     async loadDiningData(retryCount = 0) {
-        const maxRetries = 5; // Increased for cold starts
+        const maxRetries = 10; // Increased for cold starts
         const loadingScreen = document.getElementById('loadingScreen');
         console.log(`[Frontend] [UI] Loading screen element found: ${!!loadingScreen}`);
         if (loadingScreen) {
@@ -1530,11 +1571,20 @@ class CornellDiningApp {
             });
             const hallName = hall ? hall.name : `Dining Hall ${rec.diningHallId}`;
             
-            console.log(`[Frontend] Final result: Looking for hall ID: ${rec.diningHallId}, found: ${hall ? hall.name : 'not found'}`);
+            // Check if dining hall is open
+            const isOpen = hall ? this.isDiningHallOpenAtTime(hall) : false;
+            const statusClass = isOpen ? 'open' : 'closed';
+            const statusText = isOpen ? 'Open' : 'Closed';
+            const statusIcon = isOpen ? '🟢' : '🔴';
+            
+            console.log(`[Frontend] Final result: Looking for hall ID: ${rec.diningHallId}, found: ${hall ? hall.name : 'not found'}, isOpen: ${isOpen}`);
             
             return `
                 <div class="recommendation-column">
-                    <div class="recommendation-card" data-hall-id="${rec.diningHallId}">
+                    <div class="recommendation-card ${statusClass}" data-hall-id="${rec.diningHallId}">
+                        <div class="recommendation-status">
+                            <span class="status-badge ${statusClass}">${statusIcon} ${statusText}</span>
+                        </div>
                         <div class="recommendation-name">${hallName}</div>
                         <div class="recommendation-confidence">${Math.round(rec.confidence * 100)}% match</div>
                         <div class="recommendation-reason">${rec.reason}</div>
