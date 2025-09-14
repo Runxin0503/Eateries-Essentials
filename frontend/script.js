@@ -6,6 +6,7 @@ class CornellDiningApp {
         this.userHearts = { diningHalls: [], menuItems: [] };
         this.userDetailedHearts = { diningHallHearts: [], menuItemHearts: [] };
         this.recommendations = [];
+        this.serverTime = null; // Store server time for synchronization
         this.deviceId = this.getOrCreateDeviceId();
         this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
         this.availableDates = []; // Will be populated from API data
@@ -844,21 +845,30 @@ class CornellDiningApp {
             
             if (response.status === 502 || response.status === 503 || response.status === 504) {
                 console.log('[Frontend] [AUTH] Cold start detected during auth check, retrying...');
-                // Wait a bit and retry once for cold start
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const retryResponse = await fetch(`/api/auth/check/${this.deviceId}`);
-                console.log('[Frontend] [AUTH] Auth retry response status:', retryResponse.status);
-                
-                if (retryResponse.ok) {
-                    const retryData = await retryResponse.json();
-                    console.log('[Frontend] [AUTH] Auth retry data:', retryData);
+                // Wait a bit and retry multiple times for cold start
+                for (let retryAttempt = 1; retryAttempt <= 3; retryAttempt++) {
+                    console.log(`[Frontend] [AUTH] Retry attempt ${retryAttempt}/3`);
+                    await new Promise(resolve => setTimeout(resolve, retryAttempt * 2000)); // 2s, 4s, 6s
                     
-                    if (retryData.signedIn) {
-                        this.user = retryData.user;
-                        console.log('[Frontend] [AUTH] User authenticated after retry:', this.user);
-                        this.updateUIForSignedInUser();
-                        await this.loadUserHearts();
-                        return;
+                    const retryResponse = await fetch(`/api/auth/check/${this.deviceId}`);
+                    console.log(`[Frontend] [AUTH] Auth retry ${retryAttempt} response status:`, retryResponse.status);
+                    
+                    if (retryResponse.ok) {
+                        const retryData = await retryResponse.json();
+                        console.log('[Frontend] [AUTH] Auth retry data:', retryData);
+                        
+                        if (retryData.signedIn) {
+                            this.user = retryData.user;
+                            console.log('[Frontend] [AUTH] User authenticated after retry:', this.user);
+                            this.updateUIForSignedInUser();
+                            await this.loadUserHearts();
+                            return;
+                        }
+                    }
+                    
+                    if (retryAttempt === 3) {
+                        console.log('[Frontend] [AUTH] All auth retries failed');
+                        break;
                     }
                 }
                 
@@ -1037,20 +1047,36 @@ class CornellDiningApp {
         console.log('[Frontend] [RECOMMENDATIONS] User found, proceeding with recommendation loading');
         
         try {
-            const now = new Date();
+            // Get server time for synchronization
+            console.log('[Frontend] [RECOMMENDATIONS] Getting server time...');
+            const timeResponse = await fetch('/api/time');
+            let serverTime;
+            
+            if (timeResponse.ok) {
+                const timeData = await timeResponse.json();
+                serverTime = new Date(timeData.currentTime);
+                this.serverTime = serverTime; // Store for UI rendering
+                console.log('[Frontend] [RECOMMENDATIONS] Server time:', serverTime.toISOString());
+                console.log('[Frontend] [RECOMMENDATIONS] Server timezone:', timeData.timezone);
+            } else {
+                console.log('[Frontend] [RECOMMENDATIONS] Failed to get server time, using local time');
+                serverTime = new Date();
+                this.serverTime = serverTime;
+            }
+            
             let time, day;
             
             if (this.selectedTime === 'now') {
-                // Use current time and day
-                time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-                day = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                // Use server time for current time and day
+                time = `${serverTime.getHours().toString().padStart(2, '0')}:${serverTime.getMinutes().toString().padStart(2, '0')}`;
+                day = serverTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
             } else {
-                // Use selected time but current day
+                // Use selected time but server's current day
                 time = this.selectedTime;
-                day = now.getDay();
+                day = serverTime.getDay();
             }
             
-            console.log('[Frontend] [RECOMMENDATIONS] Request parameters:', { userId: this.user.userId, time, day });
+            console.log('[Frontend] [RECOMMENDATIONS] Request parameters (using server time):', { userId: this.user.userId, time, day });
             
             const response = await fetch(`/api/recommendations/${this.user.userId}?time=${time}&day=${day}`);
             console.log('[Frontend] [RECOMMENDATIONS] Response status:', response.status);
@@ -1062,7 +1088,7 @@ class CornellDiningApp {
                 this.recommendations = data.recommendations;
                 console.log('[Frontend] [RECOMMENDATIONS] Loaded recommendations:', this.recommendations);
                 // Sort recommendations by priority (open status + confidence)
-                this.sortRecommendationsByPriority();
+                this.sortRecommendationsByPriority(serverTime);
             } else {
                 console.log('[Frontend] [RECOMMENDATIONS] Request unsuccessful, setting empty recommendations');
                 this.recommendations = [];
@@ -1073,8 +1099,12 @@ class CornellDiningApp {
         }
     }
 
-    sortRecommendationsByPriority() {
+    sortRecommendationsByPriority(serverTime = null) {
         if (!this.recommendations || this.recommendations.length === 0) return;
+        
+        // Use server time if provided, otherwise fall back to local time
+        const currentTime = serverTime || new Date();
+        console.log(`[Frontend] [PRIORITY] Using time for open/closed calculation:`, currentTime.toISOString());
         
         this.recommendations.sort((a, b) => {
             // Find the dining halls for comparison
@@ -1083,9 +1113,9 @@ class CornellDiningApp {
             
             if (!hallA || !hallB) return 0;
             
-            // Check if halls are open
-            const isOpenA = this.isDiningHallOpenAtTime(hallA);
-            const isOpenB = this.isDiningHallOpenAtTime(hallB);
+            // Check if halls are open using the provided time
+            const isOpenA = this.isDiningHallOpenAtTime(hallA.operatingHours || hallA.events, currentTime);
+            const isOpenB = this.isDiningHallOpenAtTime(hallB.operatingHours || hallB.events, currentTime);
             
             // Weight constants for priority calculation
             const OPEN_WEIGHT = 2.0;        // Open halls get 2x weight
@@ -1104,10 +1134,11 @@ class CornellDiningApp {
         
         console.log(`[Frontend] [PRIORITY] Sorted recommendations:`, this.recommendations.map(r => {
             const hall = this.diningHalls.find(h => String(h.id) === String(r.diningHallId));
+            const isOpen = hall ? this.isDiningHallOpenAtTime(hall.operatingHours || hall.events, currentTime) : false;
             return {
                 name: hall?.name || `Hall ${r.diningHallId}`,
                 confidence: r.confidence,
-                isOpen: hall ? this.isDiningHallOpenAtTime(hall) : false
+                isOpen: isOpen
             };
         }));
     }
@@ -1633,8 +1664,9 @@ class CornellDiningApp {
             });
             const hallName = hall ? hall.name : `Dining Hall ${rec.diningHallId}`;
             
-            // Check if dining hall is open
-            const isOpen = hall ? this.isDiningHallOpenAtTime(hall) : false;
+            // Check if dining hall is open using stored server time
+            const timeToUse = this.serverTime || new Date();
+            const isOpen = hall ? this.isDiningHallOpenAtTime(hall.operatingHours || hall.events, timeToUse) : false;
             const statusClass = isOpen ? 'open' : 'closed';
             const statusText = isOpen ? 'Open' : 'Closed';
             const statusIcon = isOpen ? '🟢' : '🔴';

@@ -24,6 +24,16 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Get current server time
+app.get('/api/time', (req, res) => {
+    const currentTime = new Date();
+    res.json({ 
+        currentTime: currentTime.toISOString(),
+        timestamp: currentTime.getTime(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
+});
+
 // Get today's date in YYYY-MM-DD format
 function getTodayDate() {
     return new Date().toISOString().split('T')[0];
