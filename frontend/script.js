@@ -1010,30 +1010,35 @@ class CornellDiningApp {
     }
 
     async loadDiningData(retryCount = 0) {
+        const maxRetries = 5; // Increased for cold starts
         const loadingScreen = document.getElementById('loadingScreen');
         console.log(`[Frontend] [UI] Loading screen element found: ${!!loadingScreen}`);
         if (loadingScreen) {
             loadingScreen.classList.remove('hidden');
             loadingScreen.style.display = 'flex';
             loadingScreen.style.visibility = 'visible';
-            console.log(`[Frontend] [UI] Loading screen shown`);
+            console.log(`[Frontend] [UI] Loading screen shown for attempt ${retryCount + 1}`);
+            console.log(`[Frontend] [UI] Loading screen classes:`, loadingScreen.className);
         }
 
         try {
-            // Show "waiting for backend" message for cold starts
+            // For cold start scenarios, ping the backend first to wake it up
             if (retryCount === 0) {
                 console.log('[Frontend] Performing backend health check...');
                 try {
+                    const healthController = new AbortController();
+                    setTimeout(() => healthController.abort(), 5000); // Short timeout for health check
+                    
                     const healthCheck = await fetch('/api/health', { 
                         method: 'GET',
+                        signal: healthController.signal,
                         headers: { 'Cache-Control': 'no-cache' }
                     });
                     console.log('[Frontend] Health check status:', healthCheck.status);
                 } catch (healthError) {
-                    console.log('[Frontend] Health check failed - showing startup message');
-                    this.showStartupMessage();
-                    // Give backend time to start up
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    console.log('[Frontend] Health check failed (expected during cold start):', healthError.message);
+                    // Give backend a moment to start up after the health check attempt
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             }
             
@@ -1042,19 +1047,26 @@ class CornellDiningApp {
             const isInitialLoad = this.availableDates.length === 0;
             const url = isInitialLoad ? '/api/dining' : `/api/dining/${this.selectedDate}`;
             
-            console.log(`[Frontend] Fetching dining data from backend for date: ${isInitialLoad ? 'all dates' : this.selectedDate}`);
+            console.log(`[Frontend] Fetching dining data from backend for date: ${isInitialLoad ? 'all dates' : this.selectedDate} (attempt ${retryCount + 1}/${maxRetries + 1})`);
             
-            // No timeout - wait indefinitely for backend to respond
+            // Progressive timeout for cold starts - longer timeout for first attempts
+            const baseTimeout = retryCount === 0 ? 30000 : (retryCount === 1 ? 25000 : 20000); // 30s, 25s, then 20s
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), baseTimeout);
+            
             // Add a timestamp to prevent browser caching of failed requests
             const urlWithTimestamp = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
             
             const response = await fetch(urlWithTimestamp, { 
+                signal: controller.signal,
                 headers: {
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache',
                     'Expires': '0'
                 }
             });
+            
+            clearTimeout(timeoutId);
             console.log('[Frontend] Response status:', response.status);
             
             // Handle specific status codes that indicate cold start issues
@@ -1118,7 +1130,10 @@ class CornellDiningApp {
             this.clearErrorMessage();
             
         } catch (error) {
-            console.error(`[Frontend] Error loading dining data:`, error);
+            console.error(`[Frontend] Error loading dining data (attempt ${retryCount + 1}):`, error);
+            console.error('[Frontend] Error stack:', error.stack);
+            console.error('[Frontend] Error name:', error.name);
+            console.error('[Frontend] Error message:', error.message);
             
             // Determine if this looks like a cold start issue
             const isColdStartError = error.message.includes('Cold start') || 
@@ -1126,28 +1141,44 @@ class CornellDiningApp {
                                    error.message.includes('502') || 
                                    error.message.includes('503') || 
                                    error.message.includes('504') ||
+                                   error.name === 'AbortError' ||
                                    error.message.includes('Failed to fetch');
             
             console.log(`[Frontend] Is cold start error: ${isColdStartError}`);
             
-            // Only retry once for cold starts, otherwise show error
-            if (retryCount === 0 && isColdStartError) {
-                console.log('[Frontend] Cold start detected, will retry once after backend startup time...');
+            // Retry logic with longer delays for cold starts
+            if (retryCount < maxRetries) {
+                // Cold start errors get longer delays, especially early attempts
+                let retryDelay;
+                if (isColdStartError) {
+                    // For cold starts: 3s, 5s, 8s, 12s, 15s
+                    retryDelay = Math.min(3000 + (retryCount * 2000) + (retryCount * retryCount * 1000), 15000);
+                } else {
+                    // For other errors: 1s, 2s, 4s, 8s, 10s
+                    retryDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+                }
                 
-                this.showStartupMessage();
+                console.log(`[Frontend] ${isColdStartError ? 'Cold start detected.' : 'Network error.'} Retrying in ${retryDelay}ms...`);
                 
-                // Wait longer for backend to fully start up
-                await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second wait
+                this.showRetryMessage(retryCount + 1, maxRetries + 1, isColdStartError);
                 
-                console.log('[Frontend] Retrying after startup delay...');
-                return await this.loadDiningData(1);
+                // Force a reflow to ensure the banner appears immediately
+                document.body.offsetHeight;
+                
+                console.log('🎯 UI feedback shown, starting retry delay...');
+                
+                // Use Promise-based delay instead of setTimeout to properly block
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                
+                console.log('🎯 Retry delay complete, attempting next retry...');
+                return await this.loadDiningData(retryCount + 1);
             }
             
-            // All attempts exhausted or non-cold-start error
+            // All retries exhausted
             if (loadingScreen) {
                 loadingScreen.classList.add('hidden');
                 loadingScreen.style.display = 'none';
-                console.log('[Frontend] [UI] Loading screen hidden after error');
+                console.log('[Frontend] [UI] Loading screen hidden after all retries exhausted');
             }
             this.showPersistentError(isColdStartError);
         }
@@ -1177,10 +1208,10 @@ class CornellDiningApp {
         errorBanner.style.visibility = 'visible';
         
         const message = isColdStart 
-            ? `Starting up server... (Attempt ${currentAttempt}/${maxAttempts})`
-            : `Loading dining data... (Attempt ${currentAttempt}/${maxAttempts})`;
+            ? `Waiting for backend to start up...`
+            : `Loading dining data...`;
             
-        console.log(`[Frontend] [UI] Retry message text: ${message}`);
+        console.log(`[Frontend] [UI] Retry message text: ${message} (Attempt ${currentAttempt}/${maxAttempts})`);
             
         errorBanner.innerHTML = `
             <div class="error-content">
@@ -1209,40 +1240,6 @@ class CornellDiningApp {
                 });
             }
         }, 100);
-    }
-
-    showStartupMessage() {
-        console.log(`[Frontend] [UI] Showing backend startup message`);
-        this.clearErrorMessage();
-        
-        const errorBanner = document.createElement('div');
-        errorBanner.className = 'error-banner retry-banner';
-        
-        // Force position and visibility styles
-        errorBanner.style.position = 'fixed';
-        errorBanner.style.top = '0';
-        errorBanner.style.left = '0';
-        errorBanner.style.right = '0';
-        errorBanner.style.zIndex = '99999';
-        errorBanner.style.display = 'block';
-        errorBanner.style.visibility = 'visible';
-        
-        const message = 'Waiting for backend to start up...';
-            
-        console.log(`[Frontend] [UI] Startup message text: ${message}`);
-            
-        errorBanner.innerHTML = `
-            <div class="error-content">
-                <span>${message}</span>
-                <div class="loading-spinner"></div>
-            </div>
-        `;
-        
-        document.body.appendChild(errorBanner);
-        console.log(`[Frontend] [UI] Startup banner added to page`);
-        
-        // Force immediate visibility
-        errorBanner.offsetHeight;
     }
 
     showPersistentError(isColdStart = false) {
