@@ -599,15 +599,14 @@ class CornellDiningApp {
     }
 
     // Helper function to determine if a card is open
+    // This checks the CSS classes that were set during renderDiningHalls
     isCardOpen(card) {
-        const hallId = card.dataset.hallId;
-        if (!hallId) return false;
+        // Check if the card has the 'closed-hall' class or closed status
+        const isClosedHall = card.classList.contains('closed-hall');
+        const statusElement = card.querySelector('.dining-hall-status');
+        const hasClosedStatus = statusElement && statusElement.classList.contains('closed');
         
-        const hall = this.diningHalls.find(h => String(h.id) === String(hallId));
-        if (!hall) return false;
-        
-        // Use the same standardized method
-        return this.isDiningHallOpenAtTime(hall);
+        return !isClosedHall && !hasClosedStatus;
     }
 
     // Helper function to get card name
@@ -1126,10 +1125,19 @@ class CornellDiningApp {
             if (data.success) {
                 this.recommendations = data.recommendations;
                 console.log('[Frontend] [RECOMMENDATIONS] Loaded recommendations:', this.recommendations);
+                console.log('[Frontend] [RECOMMENDATIONS] Recommendations details:');
+                this.recommendations.forEach((rec, idx) => {
+                    console.log(`[Frontend] [RECOMMENDATIONS] Rec ${idx + 1}:`, {
+                        diningHallId: rec.diningHallId,
+                        confidence: rec.confidence,
+                        reason: rec.reason
+                    });
+                });
                 // Sort recommendations by priority (open status + confidence)
                 this.sortRecommendationsByPriority(serverTime);
             } else {
                 console.log('[Frontend] [RECOMMENDATIONS] Request unsuccessful, setting empty recommendations');
+                console.log('[Frontend] [RECOMMENDATIONS] Response data:', data);
                 this.recommendations = [];
             }
         } catch (error) {
@@ -1139,22 +1147,43 @@ class CornellDiningApp {
     }
 
     sortRecommendationsByPriority(serverTime = null) {
-        if (!this.recommendations || this.recommendations.length === 0) return;
+        console.log('[Frontend] [PRIORITY] ===== SORTING RECOMMENDATIONS BY PRIORITY =====');
+        console.log('[Frontend] [PRIORITY] Input recommendations count:', this.recommendations?.length || 0);
+        console.log('[Frontend] [PRIORITY] Server time provided:', !!serverTime);
+        
+        if (!this.recommendations || this.recommendations.length === 0) {
+            console.log('[Frontend] [PRIORITY] No recommendations to sort');
+            return;
+        }
         
         // Use server time if provided, otherwise fall back to local time
         const currentTime = serverTime || new Date();
         console.log(`[Frontend] [PRIORITY] Using time for open/closed calculation:`, currentTime.toISOString());
+        console.log(`[Frontend] [PRIORITY] Time source:`, serverTime ? 'provided server time' : 'local fallback');
         
         this.recommendations.sort((a, b) => {
+            console.log(`[Frontend] [PRIORITY] ===== COMPARING RECOMMENDATIONS =====`);
+            
             // Find the dining halls for comparison
             const hallA = this.diningHalls.find(h => String(h.id) === String(a.diningHallId));
             const hallB = this.diningHalls.find(h => String(h.id) === String(b.diningHallId));
             
-            if (!hallA || !hallB) return 0;
+            console.log(`[Frontend] [PRIORITY] Hall A: ${hallA?.name || 'not found'} (ID: ${a.diningHallId})`);
+            console.log(`[Frontend] [PRIORITY] Hall B: ${hallB?.name || 'not found'} (ID: ${b.diningHallId})`);
+            
+            if (!hallA || !hallB) {
+                console.log(`[Frontend] [PRIORITY] Missing hall data, using confidence only`);
+                return b.confidence - a.confidence;
+            }
             
             // Check if halls are open using the provided time
+            console.log(`[Frontend] [PRIORITY] Checking if ${hallA.name} is open...`);
             const isOpenA = this.isDiningHallOpenAtTime(hallA, currentTime);
+            console.log(`[Frontend] [PRIORITY] ${hallA.name} is open: ${isOpenA}`);
+            
+            console.log(`[Frontend] [PRIORITY] Checking if ${hallB.name} is open...`);
             const isOpenB = this.isDiningHallOpenAtTime(hallB, currentTime);
+            console.log(`[Frontend] [PRIORITY] ${hallB.name} is open: ${isOpenB}`);
             
             // Weight constants for priority calculation
             const OPEN_WEIGHT = 2.0;        // Open halls get 2x weight
@@ -1168,18 +1197,23 @@ class CornellDiningApp {
             console.log(`[Frontend] [PRIORITY] ${hallB.name}: open=${isOpenB}, conf=${b.confidence}, priority=${priorityB.toFixed(2)}`);
             
             // Sort by priority (higher priority first)
-            return priorityB - priorityA;
+            const result = priorityB - priorityA;
+            console.log(`[Frontend] [PRIORITY] Sort result: ${result > 0 ? hallB.name + ' wins' : hallA.name + ' wins'}`);
+            return result;
         });
         
-        console.log(`[Frontend] [PRIORITY] Sorted recommendations:`, this.recommendations.map(r => {
+        console.log(`[Frontend] [PRIORITY] Final sorted recommendations:`, this.recommendations.map((r, idx) => {
             const hall = this.diningHalls.find(h => String(h.id) === String(r.diningHallId));
             const isOpen = hall ? this.isDiningHallOpenAtTime(hall, currentTime) : false;
             return {
+                rank: idx + 1,
                 name: hall?.name || `Hall ${r.diningHallId}`,
                 confidence: r.confidence,
-                isOpen: isOpen
+                isOpen: isOpen,
+                priority: (isOpen ? 2.0 : 0.3) * r.confidence
             };
         }));
+        console.log('[Frontend] [PRIORITY] ===== END PRIORITY SORTING =====');
     }
 
     async loadDiningData(retryCount = 0) {
@@ -1692,25 +1726,67 @@ class CornellDiningApp {
             `;
         }
 
-        const recommendationColumns = this.recommendations.map(rec => {
-            console.log(`[Frontend] Searching for recommendation ID: ${rec.diningHallId} (type: ${typeof rec.diningHallId})`);
-            console.log(`[Frontend] Available hall IDs:`, this.diningHalls.map(h => `${h.id}(${typeof h.id})`));
+        const recommendationColumns = this.recommendations.map((rec, recIndex) => {
+            console.log(`[Frontend] [REC_STATUS] ===== PROCESSING RECOMMENDATION ${recIndex + 1}/${this.recommendations.length} =====`);
+            console.log(`[Frontend] [REC_STATUS] Recommendation data:`, rec);
+            console.log(`[Frontend] [REC_STATUS] Looking for dining hall ID: ${rec.diningHallId} (type: ${typeof rec.diningHallId})`);
+            console.log(`[Frontend] [REC_STATUS] Available hall IDs:`, this.diningHalls.map(h => `${h.id}(${typeof h.id})`));
             
             const hall = this.diningHalls.find(h => {
                 const match = String(h.id) === String(rec.diningHallId);
-                console.log(`[Frontend] Comparing ${h.id} (${typeof h.id}) === ${rec.diningHallId} (${typeof rec.diningHallId}) -> ${match}`);
+                console.log(`[Frontend] [REC_STATUS] Comparing ${h.id} (${typeof h.id}) === ${rec.diningHallId} (${typeof rec.diningHallId}) -> ${match}`);
                 return match;
             });
+            
+            if (!hall) {
+                console.log(`[Frontend] [REC_STATUS] ERROR: Could not find hall for ID ${rec.diningHallId}`);
+                console.log(`[Frontend] [REC_STATUS] Available halls:`, this.diningHalls.map(h => ({ id: h.id, name: h.name })));
+            } else {
+                console.log(`[Frontend] [REC_STATUS] Found hall:`, { id: hall.id, name: hall.name });
+                console.log(`[Frontend] [REC_STATUS] Hall operating hours available:`, !!hall.operatingHours);
+                if (hall.operatingHours) {
+                    console.log(`[Frontend] [REC_STATUS] Operating hours count:`, hall.operatingHours.length);
+                    console.log(`[Frontend] [REC_STATUS] Selected date:`, this.selectedDate);
+                    const todaySchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
+                    console.log(`[Frontend] [REC_STATUS] Today's schedule found:`, !!todaySchedule);
+                    if (todaySchedule) {
+                        console.log(`[Frontend] [REC_STATUS] Today's schedule:`, todaySchedule);
+                        console.log(`[Frontend] [REC_STATUS] Events count:`, todaySchedule.events?.length || 0);
+                    }
+                }
+            }
+            
             const hallName = hall ? hall.name : `Dining Hall ${rec.diningHallId}`;
             
             // Check if dining hall is open using stored server time
             const timeToUse = this.serverTime || new Date();
-            const isOpen = hall ? this.isDiningHallOpenAtTime(hall, timeToUse) : false;
+            console.log(`[Frontend] [REC_STATUS] Time to use for checking:`, timeToUse);
+            console.log(`[Frontend] [REC_STATUS] Time source:`, this.serverTime ? 'stored server time' : 'local fallback');
+            console.log(`[Frontend] [REC_STATUS] EST time string:`, timeToUse.toLocaleString("en-US", {timeZone: "America/New_York"}));
+            console.log(`[Frontend] [REC_STATUS] Selected time setting:`, this.selectedTime);
+            
+            let isOpen = false;
+            if (hall) {
+                console.log(`[Frontend] [REC_STATUS] Calling isDiningHallOpenAtTime for ${hall.name}...`);
+                isOpen = this.isDiningHallOpenAtTime(hall, timeToUse);
+                console.log(`[Frontend] [REC_STATUS] isDiningHallOpenAtTime result for ${hall.name}:`, isOpen);
+            } else {
+                console.log(`[Frontend] [REC_STATUS] No hall found, defaulting to closed`);
+            }
+            
             const statusClass = isOpen ? 'open' : 'closed';
             const statusText = isOpen ? 'Open' : 'Closed';
             const statusIcon = isOpen ? '🟢' : '🔴';
             
-            console.log(`[Frontend] Final result: Looking for hall ID: ${rec.diningHallId}, found: ${hall ? hall.name : 'not found'}, isOpen: ${isOpen}`);
+            console.log(`[Frontend] [REC_STATUS] Final status for ${hallName}:`, {
+                isOpen,
+                statusClass,
+                statusText,
+                statusIcon,
+                hallFound: !!hall,
+                timeUsed: timeToUse.toISOString()
+            });
+            console.log(`[Frontend] [REC_STATUS] ===== END RECOMMENDATION ${recIndex + 1} =====`);
             
             return `
                 <div class="recommendation-column">
@@ -1840,8 +1916,19 @@ class CornellDiningApp {
     // STANDARDIZED method to check if dining hall is open
     // This is the ONLY method that should be used throughout the app
     isDiningHallOpenAtTime(hall, checkTime = null) {
+        const caller = checkTime ? 'RECOMMENDATION' : 'MAIN_CARD';
+        console.log(`[Frontend] [${caller}] ===== CHECKING OPEN STATUS =====`);
+        console.log(`[Frontend] [${caller}] Hall:`, hall?.name || 'unknown');
+        console.log(`[Frontend] [${caller}] Check time provided:`, !!checkTime);
+        console.log(`[Frontend] [${caller}] Selected date:`, this.selectedDate);
+        console.log(`[Frontend] [${caller}] Selected time:`, this.selectedTime);
+        
         // Check if the dining hall is open at the specified time
         if (!hall || !hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+            console.log(`[Frontend] [${caller}] RESULT: FALSE - No operating hours`);
+            console.log(`[Frontend] [${caller}] - Hall exists:`, !!hall);
+            console.log(`[Frontend] [${caller}] - Operating hours exists:`, !!hall?.operatingHours);
+            console.log(`[Frontend] [${caller}] - Is array:`, Array.isArray(hall?.operatingHours));
             return false;
         }
         
@@ -1849,8 +1936,15 @@ class CornellDiningApp {
         const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
         
         if (!selectedDateSchedule || !selectedDateSchedule.events) {
+            console.log(`[Frontend] [${caller}] RESULT: FALSE - No schedule for selected date`);
+            console.log(`[Frontend] [${caller}] - Schedule found:`, !!selectedDateSchedule);
+            console.log(`[Frontend] [${caller}] - Events exist:`, !!selectedDateSchedule?.events);
+            console.log(`[Frontend] [${caller}] - Available dates:`, hall.operatingHours.map(s => s.date));
             return false;
         }
+        
+        console.log(`[Frontend] [${caller}] Found schedule for ${this.selectedDate}:`, selectedDateSchedule);
+        console.log(`[Frontend] [${caller}] Events count:`, selectedDateSchedule.events.length);
         
         // Convert time to check to minutes for easier comparison
         let timeToCheck = this.selectedTime;
@@ -1864,6 +1958,7 @@ class CornellDiningApp {
                 minute: '2-digit'
             });
             timeToCheck = estTimeString;
+            console.log(`[Frontend] [${caller}] Using provided EST time:`, timeToCheck);
         } else if (timeToCheck === 'now') {
             // For 'now', we should use the current EST time or stored server time
             if (this.serverTime) {
@@ -1874,6 +1969,7 @@ class CornellDiningApp {
                     minute: '2-digit'
                 });
                 timeToCheck = estTimeString;
+                console.log(`[Frontend] [${caller}] Using stored server EST time for "now":`, timeToCheck);
             } else {
                 const now = new Date();
                 const estTimeString = now.toLocaleString("en-US", {
@@ -1883,14 +1979,21 @@ class CornellDiningApp {
                     minute: '2-digit'
                 });
                 timeToCheck = estTimeString;
+                console.log(`[Frontend] [${caller}] Using current EST time for "now":`, timeToCheck);
             }
+        } else {
+            console.log(`[Frontend] [${caller}] Using selected time:`, timeToCheck);
         }
         
         const selectedMinutes = this.timeToMinutes(timeToCheck);
+        console.log(`[Frontend] [${caller}] Time in minutes:`, selectedMinutes);
         
         // Check if any event contains the specified time
-        const isOpen = selectedDateSchedule.events.some(event => {
+        const isOpen = selectedDateSchedule.events.some((event, eventIndex) => {
+            console.log(`[Frontend] [${caller}] Checking event ${eventIndex + 1}:`, event);
+            
             if (!event.start || !event.end) {
+                console.log(`[Frontend] [${caller}] Event ${eventIndex + 1}: SKIP - Missing start/end times`);
                 return false;
             }
             
@@ -1899,21 +2002,37 @@ class CornellDiningApp {
             const eventEndMinutes = this.parseEventTime(event.end);
             
             if (eventStartMinutes === null || eventEndMinutes === null) {
+                console.log(`[Frontend] [${caller}] Event ${eventIndex + 1}: SKIP - Could not parse times`);
+                console.log(`[Frontend] [${caller}] - Start: "${event.start}" -> ${eventStartMinutes}`);
+                console.log(`[Frontend] [${caller}] - End: "${event.end}" -> ${eventEndMinutes}`);
                 return false;
             }
+            
+            console.log(`[Frontend] [${caller}] Event ${eventIndex + 1} parsed times:`);
+            console.log(`[Frontend] [${caller}] - Start: "${event.start}" -> ${eventStartMinutes} minutes`);
+            console.log(`[Frontend] [${caller}] - End: "${event.end}" -> ${eventEndMinutes} minutes`);
+            console.log(`[Frontend] [${caller}] - Check time: "${timeToCheck}" -> ${selectedMinutes} minutes`);
             
             // Handle times that span across midnight (e.g., 8:00am to 2:00am next day)
             if (eventEndMinutes < eventStartMinutes) {
                 // Time spans across midnight
                 const isInRange = selectedMinutes >= eventStartMinutes || selectedMinutes <= eventEndMinutes;
+                console.log(`[Frontend] [${caller}] Event ${eventIndex + 1}: MIDNIGHT-SPANNING - In range: ${isInRange}`);
+                console.log(`[Frontend] [${caller}] - Logic: ${selectedMinutes} >= ${eventStartMinutes} OR ${selectedMinutes} <= ${eventEndMinutes}`);
+                console.log(`[Frontend] [${caller}] - Result: ${selectedMinutes >= eventStartMinutes} OR ${selectedMinutes <= eventEndMinutes} = ${isInRange}`);
                 return isInRange;
             } else {
                 // Normal time range (no midnight crossing)
                 const isInRange = selectedMinutes >= eventStartMinutes && selectedMinutes <= eventEndMinutes;
+                console.log(`[Frontend] [${caller}] Event ${eventIndex + 1}: NORMAL - In range: ${isInRange}`);
+                console.log(`[Frontend] [${caller}] - Logic: ${selectedMinutes} >= ${eventStartMinutes} AND ${selectedMinutes} <= ${eventEndMinutes}`);
+                console.log(`[Frontend] [${caller}] - Result: ${selectedMinutes >= eventStartMinutes} AND ${selectedMinutes <= eventEndMinutes} = ${isInRange}`);
                 return isInRange;
             }
         });
         
+        console.log(`[Frontend] [${caller}] FINAL RESULT for ${hall.name}: ${isOpen}`);
+        console.log(`[Frontend] [${caller}] ===== END OPEN STATUS CHECK =====`);
         return isOpen;
     }
 
