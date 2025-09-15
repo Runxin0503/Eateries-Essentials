@@ -420,6 +420,10 @@ body {
     border: 2px solid transparent;
     width: 100%;
     max-width: none;
+    user-select: none; /* Prevent text selection on double-click */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .dining-hall-spacer {
@@ -779,6 +783,11 @@ body {
     border-right: 1px solid #e9ecef;
     border-top: 1px solid #e9ecef;
     transition: all 0.2s ease;
+    cursor: pointer;
+    user-select: none; /* Prevent text selection on double-click */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .menu-item:last-child {

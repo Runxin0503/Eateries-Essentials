@@ -14,24 +14,21 @@ class CornellDiningApp {
         this.availableDates = []; // Will be populated from API data
         this.selectedTime = 'now'; // Default to current time
         this.pendingHeartRequests = new Set(); // Track ongoing heart requests to prevent race conditions
+        
+        // Double-click detection
+        this.clickTimers = new Map(); // Store click timers for double-click detection
+        this.DOUBLE_CLICK_DELAY = 300; // milliseconds
 
         this.init();
     }
 
     async init() {
         console.log('[Frontend] Initializing Cornell Dining App...');
-        console.log('[Frontend] [DEBUG] Environment detection:');
-        console.log('[Frontend] [DEBUG] - URL:', window.location.href);
-        console.log('[Frontend] [DEBUG] - Protocol:', window.location.protocol);
-        console.log('[Frontend] [DEBUG] - Host:', window.location.host);
-        console.log('[Frontend] [DEBUG] - Is HTTPS:', window.location.protocol === 'https:');
-        console.log('[Frontend] [DEBUG] - User Agent:', navigator.userAgent);
         
         // Add a small delay to ensure DOM is fully ready
         await new Promise(resolve => setTimeout(resolve, 100));
         
         this.bindEvents();
-        console.log('[Frontend] Events bound');
         
         // Add network status monitoring
         this.setupNetworkMonitoring();
@@ -46,15 +43,10 @@ class CornellDiningApp {
         });
         
         await this.checkAuth();
-        console.log('[Frontend] Auth checked');
         await this.loadDiningData();
-        console.log('[Frontend] Dining data loaded');
         await this.loadRecommendations();
-        console.log('[Frontend] Recommendations loaded');
         this.initializeDateSelector(); // Initialize after data is loaded
-        console.log('[Frontend] Date selector initialized');
         this.renderDiningHalls();
-        console.log('[Frontend] Dining halls rendered');
         
         // Add manual check for search functionality after everything is loaded
         setTimeout(() => {
@@ -69,30 +61,13 @@ class CornellDiningApp {
         
         const searchInput = document.getElementById('searchInput');
         const heartsManagerBtn = document.getElementById('heartsManagerBtn');
-        const clearSearchBtn = document.getElementById('clearSearchBtn');
-        
-        console.log('[Frontend] [DEBUG] Post-init element check:');
-        console.log('[Frontend] [DEBUG] - Search input found:', !!searchInput);
-        console.log('[Frontend] [DEBUG] - Hearts manager button found:', !!heartsManagerBtn);
-        console.log('[Frontend] [DEBUG] - Clear search button found:', !!clearSearchBtn);
         
         if (searchInput) {
-            console.log('[Frontend] [DEBUG] Search input details:');
-            console.log('[Frontend] [DEBUG] - Has data-search-bound:', searchInput.hasAttribute('data-search-bound'));
-            console.log('[Frontend] [DEBUG] - Value:', searchInput.value);
-            console.log('[Frontend] [DEBUG] - Disabled:', searchInput.disabled);
-            console.log('[Frontend] [DEBUG] - Style display:', getComputedStyle(searchInput).display);
-            console.log('[Frontend] [DEBUG] - Style visibility:', getComputedStyle(searchInput).visibility);
-            console.log('[Frontend] [DEBUG] - Style pointer-events:', getComputedStyle(searchInput).pointerEvents);
-            
-            // Test if we can programmatically interact with the search input
-            console.log('[Frontend] [DEBUG] Testing programmatic interaction...');
+            // Test programmatic interaction
             try {
                 const originalValue = searchInput.value;
-                // Temporarily set and clear the value without persisting it
                 searchInput.value = 'TEST';
                 searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-                // Immediately restore original value
                 searchInput.value = originalValue;
                 searchInput.dispatchEvent(new Event('input', { bubbles: true }));
                 console.log('[Frontend] [DEBUG] Programmatic test successful');
@@ -100,19 +75,11 @@ class CornellDiningApp {
                 console.error('[Frontend] [DEBUG] Programmatic test failed:', error);
             }
         }
-        
+
         if (heartsManagerBtn) {
-            console.log('[Frontend] [DEBUG] Hearts manager button details:');
-            console.log('[Frontend] [DEBUG] - Style display:', getComputedStyle(heartsManagerBtn).display);
-            console.log('[Frontend] [DEBUG] - Style visibility:', getComputedStyle(heartsManagerBtn).visibility);
-            console.log('[Frontend] [DEBUG] - Style pointer-events:', getComputedStyle(heartsManagerBtn).pointerEvents);
-            console.log('[Frontend] [DEBUG] - Disabled:', heartsManagerBtn.disabled);
-            
-            // Test if we can programmatically click the button (but don't actually click)
-            console.log('[Frontend] [DEBUG] Testing programmatic button click capability...');
+            // Test button availability
             try {
-                // Just test that the button exists and is clickable without actually clicking
-                console.log('[Frontend] [DEBUG] Hearts manager button is available for programmatic interaction');
+                heartsManagerBtn.focus();
             } catch (error) {
                 console.error('[Frontend] [DEBUG] Programmatic button test failed:', error);
             }
@@ -131,15 +98,6 @@ class CornellDiningApp {
     }
 
     bindEvents() {
-        console.log('[Frontend] [DEBUG] Starting bindEvents()');
-        console.log('[Frontend] [DEBUG] Document ready state:', document.readyState);
-        console.log('[Frontend] [DEBUG] DOM body exists:', !!document.body);
-        
-        // Debug: Check what's actually in the DOM
-        console.log('[Frontend] [DEBUG] All elements with searchInput:', document.querySelectorAll('#searchInput'));
-        console.log('[Frontend] [DEBUG] All elements with testSearchBtn:', document.querySelectorAll('#testSearchBtn'));
-        console.log('[Frontend] [DEBUG] Document HTML preview:', document.documentElement.outerHTML.substring(0, 500));
-        
         // Date selector change event (don't initialize here - do it after data loads)
         const dateSelector = document.getElementById('dateSelector');
         if (dateSelector) {
@@ -147,11 +105,8 @@ class CornellDiningApp {
                 this.selectedDate = e.target.value;
                 this.onDateChange();
             });
-            console.log('[Frontend] [DEBUG] Date selector event bound');
-        } else {
-            console.error('[Frontend] [DEBUG] Could not find dateSelector element');
         }
-        
+
         // Time selector change event
         const timeSelector = document.getElementById('timeSelector');
         if (timeSelector) {
@@ -159,9 +114,6 @@ class CornellDiningApp {
                 this.selectedTime = e.target.value;
                 this.onTimeChange();
             });
-            console.log('[Frontend] [DEBUG] Time selector event bound');
-        } else {
-            console.error('[Frontend] [DEBUG] Could not find timeSelector element');
         }
         
         // Search input event with retry logic
@@ -169,7 +121,6 @@ class CornellDiningApp {
         
         // Try binding search events again after a delay
         setTimeout(() => {
-            console.log('[Frontend] [DEBUG] Retrying search event binding after delay...');
             this.bindSearchEvents();
         }, 1000);
         
@@ -183,12 +134,7 @@ class CornellDiningApp {
                     dropdown.classList.toggle('hidden');
                 }
             });
-            console.log('[Frontend] [DEBUG] Profile button event bound');
-        } else {
-            console.error('[Frontend] [DEBUG] Could not find profileBtn element');
-        }
-
-        // Close dropdown when clicking outside
+        }        // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
             const dropdown = document.getElementById('profileDropdown');
             const profileBtn = document.getElementById('profileBtn');
@@ -237,55 +183,24 @@ class CornellDiningApp {
                 this.signIn();
             }
         });
-        
-        console.log('[Frontend] [DEBUG] bindEvents() complete');
     }
 
     bindSearchEvents() {
-        console.log('[Frontend] [SEARCH] [DEBUG] ===== ATTEMPTING TO BIND SEARCH EVENTS =====');
-        console.log('[Frontend] [SEARCH] [DEBUG] Document ready state:', document.readyState);
-        console.log('[Frontend] [SEARCH] [DEBUG] Current URL:', window.location.href);
-        
         // Search input event
         const searchInput = document.getElementById('searchInput');
         const clearSearchBtn = document.getElementById('clearSearchBtn');
-        const testSearchBtn = document.getElementById('testSearchBtn');
-        
-        console.log('[Frontend] [SEARCH] [DEBUG] Search input element found:', !!searchInput);
-        console.log('[Frontend] [SEARCH] [DEBUG] Clear search button found:', !!clearSearchBtn);
-        console.log('[Frontend] [SEARCH] [DEBUG] Test search button found:', !!testSearchBtn);
         
         if (searchInput) {
-            console.log('[Frontend] [SEARCH] [DEBUG] Search input details:');
-            console.log('[Frontend] [SEARCH] [DEBUG] - ID:', searchInput.id);
-            console.log('[Frontend] [SEARCH] [DEBUG] - Class:', searchInput.className);
-            console.log('[Frontend] [SEARCH] [DEBUG] - Type:', searchInput.type);
-            console.log('[Frontend] [SEARCH] [DEBUG] - Placeholder:', searchInput.placeholder);
-            console.log('[Frontend] [SEARCH] [DEBUG] - Value:', searchInput.value);
-            console.log('[Frontend] [SEARCH] [DEBUG] - Disabled:', searchInput.disabled);
-            console.log('[Frontend] [SEARCH] [DEBUG] - Read-only:', searchInput.readOnly);
-        }
-        
         if (!searchInput) {
-            console.error('[Frontend] [SEARCH] Could not find search input element with ID "searchInput"');
-            console.error('[Frontend] [SEARCH] Available elements with search-related IDs:');
-            const allElements = document.querySelectorAll('[id*="search"], [class*="search"]');
-            allElements.forEach((el, i) => {
-                console.error(`[Frontend] [SEARCH] Element ${i}: id="${el.id}", class="${el.className}", tag="${el.tagName}"`);
-            });
             return;
         }
         
         // Check if already bound to avoid double-binding
         if (searchInput.hasAttribute('data-search-bound')) {
-            console.log('[Frontend] [SEARCH] Search events already bound, skipping');
             return;
         }
         
-        console.log('[Frontend] [SEARCH] Binding search input event listener');
-        console.log('[Frontend] [SEARCH] [DEBUG] Search input type:', searchInput.type);
-        console.log('[Frontend] [SEARCH] [DEBUG] Search input id:', searchInput.id);
-        console.log('[Frontend] [SEARCH] [DEBUG] Search input class:', searchInput.className);
+        // Bind search input event
         
         const handleSearchChange = (value) => {
             console.log('[Frontend] [SEARCH] ===== SEARCH EVENT TRIGGERED =====');
@@ -380,6 +295,7 @@ class CornellDiningApp {
         
         console.log('[Frontend] [SEARCH] All search events bound successfully');
     }
+    }
 
     setupNetworkMonitoring() {
         // Monitor network status
@@ -453,21 +369,13 @@ class CornellDiningApp {
     }
 
     onSearchChange(searchTerm) {
-        console.log('[Frontend] [SEARCH] Search term changed to:', `"${searchTerm}"`);
-        console.log('[Frontend] [SEARCH] Search term length:', searchTerm.length);
-        
         // Trim the search term first
         const trimmedSearchTerm = searchTerm.trim();
-        console.log('[Frontend] [SEARCH] Search term trimmed:', `"${trimmedSearchTerm}"`);
-        console.log('[Frontend] [SEARCH] Trimmed search term length:', trimmedSearchTerm.length);
-        
         this.applySearchFilter(trimmedSearchTerm);
     }
 
     // Clear all search filters and show everything in alphabetical order
     clearAllSearchFilters() {
-        console.log('[Frontend] [SEARCH] Clearing all search filters');
-        
         const diningHallCards = document.querySelectorAll('.dining-hall-card');
         
         // Apply default ordering: Open first, then Closed (both alphabetical)
@@ -481,8 +389,6 @@ class CornellDiningApp {
                 item.classList.remove('search-filtered');
             });
         });
-        
-        console.log('[Frontend] [SEARCH] Finished clearing all search filters');
     }
 
     /**
@@ -538,14 +444,10 @@ class CornellDiningApp {
             // Apply to DOM: Open first, then Closed
             sortedOpen.forEach(card => container.appendChild(card));
             sortedClosed.forEach(card => container.appendChild(card));
-            
-            console.log(`[Frontend] [ORDERING] Standard order applied: ${sortedOpen.length} open, ${sortedClosed.length} closed`);
             return;
         }
 
-        // SPECIAL CONDITION ORDER: 4-tier hierarchy
-        console.log(`[Frontend] [ORDERING] Applying special condition order: ${specialCondition.name}`);
-        
+        // SPECIAL CONDITION ORDER: 4-tier hierarchy        
         const openMatching = [];
         const closedMatching = [];
         const openNonMatching = [];
@@ -566,16 +468,12 @@ class CornellDiningApp {
             // Categorize into 4-tier hierarchy
             if (isOpen && matches) {
                 openMatching.push(card);
-                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 1: Open + Matching`);
             } else if (!isOpen && matches) {
                 closedMatching.push(card);
-                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 2: Closed + Matching`);
             } else if (isOpen && !matches) {
                 openNonMatching.push(card);
-                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 3: Open + Non-matching`);
             } else {
                 closedNonMatching.push(card);
-                console.log(`[Frontend] [ORDERING] Card ${cardIndex} "${cardName}" -> Tier 4: Closed + Non-matching`);
             }
         });
         
@@ -584,12 +482,6 @@ class CornellDiningApp {
         const sortedClosedMatching = this.sortCardsByRelevance(closedMatching);
         const sortedOpenNonMatching = this.sortCardsAlphabetically(openNonMatching);
         const sortedClosedNonMatching = this.sortCardsAlphabetically(closedNonMatching);
-        
-        console.log(`[Frontend] [ORDERING] ${specialCondition.name} 4-tier hierarchy:`);
-        console.log(`[Frontend] [ORDERING] Tier 1 - Open + Matching: ${sortedOpenMatching.length} cards`);
-        console.log(`[Frontend] [ORDERING] Tier 2 - Closed + Matching: ${sortedClosedMatching.length} cards`);
-        console.log(`[Frontend] [ORDERING] Tier 3 - Open + Non-matching: ${sortedOpenNonMatching.length} cards`);
-        console.log(`[Frontend] [ORDERING] Tier 4 - Closed + Non-matching: ${sortedClosedNonMatching.length} cards`);
         
         // Apply to DOM in 4-tier order
         sortedOpenMatching.forEach(card => container.appendChild(card));
@@ -673,48 +565,36 @@ class CornellDiningApp {
     }
 
     applySearchFilter(searchTerm) {
-        console.log('[Frontend] [SEARCH] Starting applySearchFilter with term:', `"${searchTerm}"`);
-        
         // Early check for empty or whitespace-only strings
         if (!searchTerm || !searchTerm.trim()) {
-            console.log('[Frontend] [SEARCH] Empty or whitespace-only search term - clearing all filters');
             this.clearAllSearchFilters();
             return;
         }
         
         const normalizedSearch = this.normalizeForSearch(searchTerm);
-        console.log('[Frontend] [SEARCH] Normalized search term:', `"${normalizedSearch}"`);
         
         // Double-check after normalization (in case special characters result in empty string)
         if (!normalizedSearch) {
-            console.log('[Frontend] [SEARCH] Normalized search term is empty - clearing all filters');
             this.clearAllSearchFilters();
             return;
         }
         
         const diningHallCards = document.querySelectorAll('.dining-hall-card');
-        console.log('[Frontend] [SEARCH] Found dining hall cards:', diningHallCards.length);
-
-        console.log('[Frontend] [SEARCH] Processing search with non-empty term');
         
         // Process each card to determine matches and apply menu item filtering
         Array.from(diningHallCards).forEach((card, cardIndex) => {
             const diningHallNameElement = card.querySelector('.dining-hall-name');
             if (!diningHallNameElement) {
-                console.warn(`[Frontend] [SEARCH] Card ${cardIndex} missing dining hall name element`);
                 card.classList.add('search-filtered');
                 return;
             }
             
             const diningHallName = diningHallNameElement.textContent.toLowerCase();
             const normalizedDiningHallName = this.normalizeForSearch(diningHallNameElement.textContent);
-            console.log(`[Frontend] [SEARCH] Processing card ${cardIndex}: "${diningHallName}" -> normalized: "${normalizedDiningHallName}"`);
             
             const menuItems = card.querySelectorAll('.menu-item');
-            console.log(`[Frontend] [SEARCH] Card ${cardIndex} has ${menuItems.length} menu items`);
             
             let diningHallMatches = normalizedDiningHallName.includes(normalizedSearch);
-            console.log(`[Frontend] [SEARCH] Dining hall "${normalizedDiningHallName}" matches "${normalizedSearch}":`, diningHallMatches);
             
             let hasMatchingMenuItems = false;
             let matchingMenuItemsCount = 0;
@@ -723,7 +603,6 @@ class CornellDiningApp {
             menuItems.forEach((menuItem, menuIndex) => {
                 const menuItemNameElement = menuItem.querySelector('.menu-item-name');
                 if (!menuItemNameElement) {
-                    console.warn(`[Frontend] [SEARCH] Menu item ${menuIndex} in card ${cardIndex} missing name element`);
                     menuItem.classList.add('search-filtered');
                     return;
                 }
@@ -732,30 +611,22 @@ class CornellDiningApp {
                 const normalizedMenuItemName = this.normalizeForSearch(menuItemNameElement.textContent);
                 const menuItemMatches = normalizedMenuItemName.includes(normalizedSearch);
                 
-                console.log(`[Frontend] [SEARCH] Menu item ${menuIndex} "${menuItemName}" -> normalized: "${normalizedMenuItemName}" matches "${normalizedSearch}":`, menuItemMatches);
-                
                 if (menuItemMatches) {
                     hasMatchingMenuItems = true;
                     matchingMenuItemsCount++;
                     menuItem.classList.remove('search-filtered');
-                    console.log(`[Frontend] [SEARCH] Removed filter from menu item ${menuIndex}`);
                 } else {
                     menuItem.classList.add('search-filtered');
-                    console.log(`[Frontend] [SEARCH] Added filter to menu item ${menuIndex}`);
                 }
             });
-
-            console.log(`[Frontend] [SEARCH] Card ${cardIndex} has matching menu items:`, hasMatchingMenuItems);
 
             // Determine if this card has any matches and set filtering
             const cardHasMatches = diningHallMatches || hasMatchingMenuItems;
             
             if (cardHasMatches) {
                 card.classList.remove('search-filtered');
-                console.log(`[Frontend] [SEARCH] Card ${cardIndex} has matches - showing`);
             } else {
                 card.classList.add('search-filtered');
-                console.log(`[Frontend] [SEARCH] Card ${cardIndex} has no matches - filtering out`);
             }
         });
 
@@ -786,7 +657,6 @@ class CornellDiningApp {
         };
 
         this.applyCardOrdering(diningHallCards, searchCondition);
-        console.log('[Frontend] [SEARCH] Search filtering and ordering complete');
     }
 
     updateDayOfWeek() {
@@ -1052,19 +922,14 @@ class CornellDiningApp {
     }
 
     async loadRecommendations() {
-        console.log('[Frontend] [RECOMMENDATIONS] Starting loadRecommendations, user:', this.user);
         
         if (!this.user) {
-            console.log('[Frontend] [RECOMMENDATIONS] No user found, setting recommendations to empty');
             this.recommendations = [];
             return;
         }
-
-        console.log('[Frontend] [RECOMMENDATIONS] User found, proceeding with recommendation loading');
         
         try {
             // Get server time for synchronization
-            console.log('[Frontend] [RECOMMENDATIONS] Getting server time...');
             const timeResponse = await fetch('/api/time');
             let serverTime;
             
@@ -1072,21 +937,16 @@ class CornellDiningApp {
                 const timeData = await timeResponse.json();
                 serverTime = new Date(timeData.currentTime);
                 this.serverTime = serverTime; // Store for UI rendering
-                console.log('[Frontend] [RECOMMENDATIONS] Server time (EST):', timeData.estTime);
-                console.log('[Frontend] [RECOMMENDATIONS] Server timezone:', timeData.timezone);
-                console.log('[Frontend] [RECOMMENDATIONS] Server date (YYYY-MM-DD):', serverTime.toISOString().split('T')[0]);
-                console.log('[Frontend] [RECOMMENDATIONS] Selected date (YYYY-MM-DD):', this.selectedDate);
                 
                 // Check if there's a date mismatch that could cause issues
                 const serverDate = serverTime.toISOString().split('T')[0];
                 if (this.selectedDate !== serverDate && this.selectedTime === 'now') {
-                    console.log('[Frontend] [RECOMMENDATIONS] WARNING: Date mismatch detected!');
-                    console.log('[Frontend] [RECOMMENDATIONS] Selected date:', this.selectedDate);
-                    console.log('[Frontend] [RECOMMENDATIONS] Server date:', serverDate);
-                    console.log('[Frontend] [RECOMMENDATIONS] This may cause open/closed status discrepancies');
+                    console.log('[RECOMMENDATIONS] WARNING: Date mismatch detected!');
+                    console.log('[RECOMMENDATIONS] Selected date:', this.selectedDate);
+                    console.log('[RECOMMENDATIONS] Server date:', serverDate);
                 }
             } else {
-                console.log('[Frontend] [RECOMMENDATIONS] Failed to get server time, using local EST time');
+                console.log('[RECOMMENDATIONS] Failed to get server time, using local EST time');
                 // Create EST time as fallback
                 const now = new Date();
                 serverTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
@@ -1099,71 +959,37 @@ class CornellDiningApp {
                 // Use server EST time for current time and day
                 time = `${serverTime.getHours().toString().padStart(2, '0')}:${serverTime.getMinutes().toString().padStart(2, '0')}`;
                 day = serverTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
-                console.log('[Frontend] [RECOMMENDATIONS] Using server EST time for "now":', time, 'day:', day);
-                console.log('[Frontend] [RECOMMENDATIONS] Server time details:', {
-                    fullDate: serverTime.toISOString(),
-                    estTime: serverTime.toLocaleString("en-US", {timeZone: "America/New_York"}),
-                    utcHours: serverTime.getUTCHours(),
-                    localHours: serverTime.getHours(),
-                    day: serverTime.getDay()
-                });
             } else {
                 // Use selected time but server's current day (in EST)
                 time = this.selectedTime;
                 day = serverTime.getDay();
-                console.log('[Frontend] [RECOMMENDATIONS] Using selected time:', time, 'with server EST day:', day);
             }
             
-            console.log('[Frontend] [RECOMMENDATIONS] Request parameters (using server time):', { userId: this.user.userId, time, day });
-            
             const response = await fetch(`/api/recommendations/${this.user.userId}?time=${time}&day=${day}`);
-            console.log('[Frontend] [RECOMMENDATIONS] Response status:', response.status);
             
             const data = await response.json();
-            console.log('[Frontend] [RECOMMENDATIONS] Response data:', data);
             
             if (data.success) {
                 this.recommendations = data.recommendations;
-                console.log('[Frontend] [RECOMMENDATIONS] Loaded recommendations:', this.recommendations);
-                console.log('[Frontend] [RECOMMENDATIONS] Recommendations details:');
-                this.recommendations.forEach((rec, idx) => {
-                    console.log(`[Frontend] [RECOMMENDATIONS] Rec ${idx + 1}:`, {
-                        diningHallId: rec.diningHallId,
-                        confidence: rec.confidence,
-                        reason: rec.reason
-                    });
-                });
                 // Sort recommendations by priority (open status + confidence)
                 this.sortRecommendationsByPriority(serverTime);
             } else {
-                console.log('[Frontend] [RECOMMENDATIONS] Request unsuccessful, setting empty recommendations');
-                console.log('[Frontend] [RECOMMENDATIONS] Response data:', data);
+                console.log('[RECOMMENDATIONS] Request unsuccessful:', data);
                 this.recommendations = [];
             }
         } catch (error) {
-            console.error('[Frontend] [RECOMMENDATIONS] Error loading recommendations:', error);
+            console.error('[RECOMMENDATIONS] Error loading recommendations:', error);
             this.recommendations = [];
         }
     }
 
     sortRecommendationsByPriority(serverTime = null) {
-        console.log('[Frontend] [PRIORITY] ===== SORTING RECOMMENDATIONS BY PRIORITY =====');
-        console.log('[Frontend] [PRIORITY] Input recommendations count:', this.recommendations?.length || 0);
-        console.log('[Frontend] [PRIORITY] Server time provided:', !!serverTime);
-        console.log('[Frontend] [PRIORITY] Selected time setting:', this.selectedTime);
         
         if (!this.recommendations || this.recommendations.length === 0) {
-            console.log('[Frontend] [PRIORITY] No recommendations to sort');
             return;
         }
         
-        // For open/closed status checking, we should NOT use server time directly
-        // Instead, respect the user's selected time setting
-        console.log(`[Frontend] [PRIORITY] Will use user's selected time (${this.selectedTime}) for open/closed calculation`);
-        console.log(`[Frontend] [PRIORITY] Selected date: ${this.selectedDate}`);
-        
         this.recommendations.sort((a, b) => {
-            console.log(`[Frontend] [PRIORITY] ===== COMPARING RECOMMENDATIONS =====`);
             
             // Find the dining halls for comparison
             let hallA = this.diningHalls.find(h => String(h.id) === String(a.diningHallId));
@@ -1179,22 +1005,13 @@ class CornellDiningApp {
                 hallB = { ...hallB, operatingHours: operatingHoursB };
             }
             
-            console.log(`[Frontend] [PRIORITY] Hall A: ${hallA?.name || 'not found'} (ID: ${a.diningHallId})`);
-            console.log(`[Frontend] [PRIORITY] Hall B: ${hallB?.name || 'not found'} (ID: ${b.diningHallId})`);
-            
             if (!hallA || !hallB) {
-                console.log(`[Frontend] [PRIORITY] Missing hall data, using confidence only`);
                 return b.confidence - a.confidence;
             }
             
             // Check if halls are open using the user's selected time setting
-            console.log(`[Frontend] [PRIORITY] Checking if ${hallA.name} is open...`);
             const isOpenA = this.isDiningHallOpenAtTime(hallA);  // Don't pass server time - let it use selectedTime
-            console.log(`[Frontend] [PRIORITY] ${hallA.name} is open: ${isOpenA}`);
-            
-            console.log(`[Frontend] [PRIORITY] Checking if ${hallB.name} is open...`);
             const isOpenB = this.isDiningHallOpenAtTime(hallB);  // Don't pass server time - let it use selectedTime
-            console.log(`[Frontend] [PRIORITY] ${hallB.name} is open: ${isOpenB}`);
             
             // Weight constants for priority calculation
             const OPEN_WEIGHT = 2.0;        // Open halls get 2x weight
@@ -1204,12 +1021,8 @@ class CornellDiningApp {
             const priorityA = (isOpenA ? OPEN_WEIGHT : 0.3) * CONFIDENCE_WEIGHT * a.confidence;
             const priorityB = (isOpenB ? OPEN_WEIGHT : 0.3) * CONFIDENCE_WEIGHT * b.confidence;
             
-            console.log(`[Frontend] [PRIORITY] ${hallA.name}: open=${isOpenA}, conf=${a.confidence}, priority=${priorityA.toFixed(2)}`);
-            console.log(`[Frontend] [PRIORITY] ${hallB.name}: open=${isOpenB}, conf=${b.confidence}, priority=${priorityB.toFixed(2)}`);
-            
             // Sort by priority (higher priority first)
             const result = priorityB - priorityA;
-            console.log(`[Frontend] [PRIORITY] Sort result: ${result > 0 ? hallB.name + ' wins' : hallA.name + ' wins'}`);
             return result;
         });
         
@@ -1738,14 +1551,7 @@ class CornellDiningApp {
     }
 
     createRecommendationContent() {
-        console.log(`[Frontend] Creating recommendation content for ${this.recommendations.length} recommendations`);
-        if (this.diningHalls && this.diningHalls.length > 0) {
-            console.log(`[Frontend] Available dining halls:`, this.diningHalls.map(h => ({ id: h.id, name: h.name, type: typeof h.id })));
-        }
-        if (this.recommendations && this.recommendations.length > 0) {
-            console.log(`[Frontend] Recommendation IDs:`, this.recommendations.map(r => ({ id: r.diningHallId, type: typeof r.diningHallId })));
-        }
-
+        
         if (!this.user) {
             return `
                 <div class="recommendation-header">
@@ -1764,69 +1570,31 @@ class CornellDiningApp {
         }
 
         const recommendationColumns = this.recommendations.map((rec, recIndex) => {
-            console.log(`[Frontend] [REC_STATUS] ===== PROCESSING RECOMMENDATION ${recIndex + 1}/${this.recommendations.length} =====`);
-            console.log(`[Frontend] [REC_STATUS] Recommendation data:`, rec);
-            console.log(`[Frontend] [REC_STATUS] Looking for dining hall ID: ${rec.diningHallId} (type: ${typeof rec.diningHallId})`);
-            console.log(`[Frontend] [REC_STATUS] Available hall IDs:`, this.diningHalls.map(h => `${h.id}(${typeof h.id})`));
             
             let hall = this.diningHalls.find(h => {
                 const match = String(h.id) === String(rec.diningHallId);
-                console.log(`[Frontend] [REC_STATUS] Comparing ${h.id} (${typeof h.id}) === ${rec.diningHallId} (${typeof rec.diningHallId}) -> ${match}`);
                 return match;
             });
             
             if (!hall) {
-                console.log(`[Frontend] [REC_STATUS] ERROR: Could not find hall for ID ${rec.diningHallId}`);
-                console.log(`[Frontend] [REC_STATUS] Available halls:`, this.diningHalls.map(h => ({ id: h.id, name: h.name })));
+                console.log(`[REC_STATUS] ERROR: Could not find hall for ID ${rec.diningHallId}`);
             } else {
                 // Get original operating hours for this dining hall (same as main cards)
                 const operatingHours = this.getOriginalOperatingHours(hall.id);
                 hall = { ...hall, operatingHours };
-                
-                console.log(`[Frontend] [REC_STATUS] Found hall:`, { id: hall.id, name: hall.name });
-                console.log(`[Frontend] [REC_STATUS] Hall operating hours available:`, !!hall.operatingHours);
-                if (hall.operatingHours) {
-                    console.log(`[Frontend] [REC_STATUS] Operating hours count:`, hall.operatingHours.length);
-                    console.log(`[Frontend] [REC_STATUS] Selected date:`, this.selectedDate);
-                    const todaySchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
-                    console.log(`[Frontend] [REC_STATUS] Today's schedule found:`, !!todaySchedule);
-                    if (todaySchedule) {
-                        console.log(`[Frontend] [REC_STATUS] Today's schedule:`, todaySchedule);
-                        console.log(`[Frontend] [REC_STATUS] Events count:`, todaySchedule.events?.length || 0);
-                    }
-                }
             }
             
             const hallName = hall ? hall.name : `Dining Hall ${rec.diningHallId}`;
             
             // Check if dining hall is open using user's selected time setting
-            console.log(`[Frontend] [REC_STATUS] Will use user's selected time setting for open/closed check`);
-            console.log(`[Frontend] [REC_STATUS] Selected time setting:`, this.selectedTime);
-            console.log(`[Frontend] [REC_STATUS] Selected date:`, this.selectedDate);
-            
             let isOpen = false;
             if (hall) {
-                console.log(`[Frontend] [REC_STATUS] Calling isDiningHallOpenAtTime for ${hall.name}...`);
                 isOpen = this.isDiningHallOpenAtTime(hall);  // Don't pass server time - use selectedTime
-                console.log(`[Frontend] [REC_STATUS] isDiningHallOpenAtTime result for ${hall.name}:`, isOpen);
-            } else {
-                console.log(`[Frontend] [REC_STATUS] No hall found, defaulting to closed`);
             }
             
             const statusClass = isOpen ? 'open' : 'closed';
             const statusText = isOpen ? 'Open' : 'Closed';
             const statusIcon = isOpen ? '🟢' : '🔴';
-            
-            console.log(`[Frontend] [REC_STATUS] Final status for ${hallName}:`, {
-                isOpen,
-                statusClass,
-                statusText,
-                statusIcon,
-                hallFound: !!hall,
-                selectedTime: this.selectedTime,
-                selectedDate: this.selectedDate
-            });
-            console.log(`[Frontend] [REC_STATUS] ===== END RECOMMENDATION ${recIndex + 1} =====`);
             
             return `
                 <div class="recommendation-column">
@@ -1861,6 +1629,56 @@ class CornellDiningApp {
                 ${recommendationColumns}${emptyColumnHTML}
             </div>
         `;
+    }
+
+    bindRecommendationClickEvents() {
+        // Find the spacer row and bind click events for recommendation cards
+        const spacerRow = document.querySelector('.dining-hall-spacer');
+        if (!spacerRow) {
+            console.error('[Frontend] bindRecommendationClickEvents: Could not find spacer row');
+            return;
+        }
+
+        // Remove existing event listeners to avoid duplicates
+        const existingHandler = spacerRow.querySelector('.recommendation-click-handler');
+        if (existingHandler) {
+            spacerRow.removeEventListener('click', existingHandler);
+        }
+
+        // Add click handlers for recommendation cards
+        const clickHandler = (e) => {
+            console.log('[Frontend] [RECOMMENDATION_CLICK] ===== RECOMMENDATION CARD CLICKED =====');
+            console.log('[Frontend] [RECOMMENDATION_CLICK] Click event target:', e.target);
+            
+            const recommendationCard = e.target.closest('.recommendation-card');
+            console.log('[Frontend] [RECOMMENDATION_CLICK] Found recommendation card:', !!recommendationCard);
+            
+            if (recommendationCard) {
+                console.log('[Frontend] [RECOMMENDATION_CLICK] - Is empty card:', recommendationCard.classList.contains('empty'));
+                
+                if (!recommendationCard.classList.contains('empty')) {
+                    const hallId = recommendationCard.dataset.hallId;
+                    console.log('[Frontend] [RECOMMENDATION_CLICK] Hall ID from dataset:', hallId);
+                    
+                    if (hallId) {
+                        console.log('[Frontend] [RECOMMENDATION_CLICK] Attempting to scroll to hall ID:', hallId);
+                        this.scrollToHall(hallId);
+                    } else {
+                        console.error('[Frontend] [RECOMMENDATION_CLICK] No hall ID found in recommendation card dataset');
+                    }
+                } else {
+                    console.log('[Frontend] [RECOMMENDATION_CLICK] Clicked on empty recommendation card, ignoring');
+                }
+            } else {
+                console.log('[Frontend] [RECOMMENDATION_CLICK] Click was not on a recommendation card');
+            }
+            console.log('[Frontend] [RECOMMENDATION_CLICK] ===== END RECOMMENDATION CLICK =====');
+        };
+
+        spacerRow.addEventListener('click', clickHandler);
+        
+        // Mark the handler for potential removal later
+        clickHandler.className = 'recommendation-click-handler';
     }
 
     scrollToHall(hallId) {
@@ -1995,10 +1813,18 @@ class CornellDiningApp {
             this.handleHeartClick(e, card, hall);
         });
 
-        // Add double-click handler for smart hearting
-        card.addEventListener('dblclick', (e) => {
-            e.preventDefault();
-            this.handleSmartDoubleClick(e, card, hall);
+        // Add double-click handler for smart hearting using custom double-click detection
+        card.addEventListener('click', (e) => {
+            // Only handle double-click logic if clicking on the card itself, not on hearts or other elements
+            if (e.target.closest('.heart-icon') || e.target.closest('.menu-item-heart')) {
+                return; // Let the heart-specific handlers deal with this
+            }
+            
+            const cardId = `card-${hall.id}`;
+            this.handleCardDoubleClick(e, cardId, () => {
+                console.log('[Frontend] [DOUBLE_CLICK] Card double-click detected for hall:', hall.id);
+                this.handleSmartDoubleClick(e, card, hall);
+            });
         });
 
         // Add single-click handlers for menu item hearts
@@ -2011,6 +1837,25 @@ class CornellDiningApp {
                 if (menuItem) {
                     this.handleMenuItemHeart(e, menuItem);
                 }
+            });
+        });
+
+        // Add double-click handlers for menu items themselves using custom double-click detection
+        const menuItems = card.querySelectorAll('.menu-item');
+        menuItems.forEach((menuItem, index) => {
+            menuItem.addEventListener('click', (e) => {
+                // Only handle double-click if not clicking on the heart icon specifically
+                if (e.target.closest('.menu-item-heart')) {
+                    return; // Let the heart-specific handler deal with this
+                }
+                
+                const menuItemId = `menu-${hall.id}-${index}`;
+                this.handleCardDoubleClick(e, menuItemId, () => {
+                    console.log('[Frontend] [DOUBLE_CLICK] Menu item double-click detected for item:', menuItem.dataset.itemId);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.handleMenuItemHeart(e, menuItem);
+                });
             });
         });
 
@@ -2336,6 +2181,33 @@ class CornellDiningApp {
         return menuHTML;
     }
 
+    // Custom double-click detection to handle timing conflicts
+    handleCardDoubleClick(e, elementId, doubleClickCallback) {
+        const now = Date.now();
+        const lastClick = this.clickTimers.get(elementId);
+        
+        if (lastClick && (now - lastClick < this.DOUBLE_CLICK_DELAY)) {
+            // This is a double-click
+            console.log('[Frontend] [DOUBLE_CLICK] Double-click detected for element:', elementId);
+            this.clickTimers.delete(elementId); // Clear the timer
+            e.preventDefault();
+            e.stopPropagation();
+            doubleClickCallback();
+        } else {
+            // This is a single click - store the timestamp
+            this.clickTimers.set(elementId, now);
+            
+            // Clear the timer after the double-click delay
+            setTimeout(() => {
+                if (this.clickTimers.get(elementId) === now) {
+                    // This was indeed a single click (no double-click followed)
+                    this.clickTimers.delete(elementId);
+                    console.log('[Frontend] [DOUBLE_CLICK] Single click confirmed for element:', elementId);
+                }
+            }, this.DOUBLE_CLICK_DELAY);
+        }
+    }
+
     async handleHeartClick(e, card, hall) {
         e.stopPropagation();
         
@@ -2349,9 +2221,11 @@ class CornellDiningApp {
     }
 
     async handleSmartDoubleClick(e, card, hall) {
+        console.log('[Frontend] [DOUBLE_CLICK] handleSmartDoubleClick called!', e.target);
         e.stopPropagation();
         
         if (!this.user) {
+            console.log('[Frontend] [DOUBLE_CLICK] No user, showing auth modal');
             this.showAuthModal();
             return;
         }
@@ -2360,9 +2234,11 @@ class CornellDiningApp {
         const menuItem = e.target.closest('.menu-item');
         
         if (menuItem) {
+            console.log('[Frontend] [DOUBLE_CLICK] Double-clicked on menu item, hearting item');
             // Double-clicked on a menu item - heart the menu item
             await this.handleMenuItemHeart(e, menuItem);
         } else {
+            console.log('[Frontend] [DOUBLE_CLICK] Double-clicked on dining hall, hearting hall');
             // Double-clicked elsewhere - heart the dining hall
             await this.toggleDiningHallHeart(hall.id, card);
         }
@@ -2440,8 +2316,12 @@ class CornellDiningApp {
                 // Refresh user hearts state to ensure consistency
                 await this.loadUserHearts();
                 
-                // Re-render dining halls to show updated recommendations
-                this.renderDiningHalls();
+                // Re-render only the recommendations section to avoid closing menus
+                const spacerRow = document.querySelector('.dining-hall-spacer');
+                if (spacerRow) {
+                    spacerRow.innerHTML = this.createRecommendationContent();
+                    this.bindRecommendationClickEvents();
+                }
                 
                 // Refresh hearts modal if it's currently open
                 this.refreshHeartsModalIfOpen();
@@ -2512,8 +2392,12 @@ class CornellDiningApp {
                 // Refresh user hearts state to ensure consistency
                 await this.loadUserHearts();
                 
-                // Re-render dining halls to show updated recommendations
-                this.renderDiningHalls();
+                // Re-render only the recommendations section to avoid closing menus
+                const spacerRow = document.querySelector('.dining-hall-spacer');
+                if (spacerRow) {
+                    spacerRow.innerHTML = this.createRecommendationContent();
+                    this.bindRecommendationClickEvents();
+                }
                 
                 // Refresh hearts modal if it's currently open
                 this.refreshHeartsModalIfOpen();
