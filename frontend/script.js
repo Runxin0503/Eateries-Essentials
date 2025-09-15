@@ -600,10 +600,14 @@ class CornellDiningApp {
 
     // Helper function to determine if a card is open
     isCardOpen(card) {
-        const isOpen = !card.classList.contains('closed-hall');
-        const statusElement = card.querySelector('.dining-hall-status');
-        const statusText = statusElement ? statusElement.textContent.toLowerCase() : '';
-        return isOpen && !statusText.includes('closed');
+        const hallId = card.dataset.hallId;
+        if (!hallId) return false;
+        
+        const hall = this.diningHalls.find(h => String(h.id) === String(hallId));
+        if (!hall) return false;
+        
+        // Use the same standardized method
+        return this.isDiningHallOpenAtTime(hall);
     }
 
     // Helper function to get card name
@@ -1833,23 +1837,8 @@ class CornellDiningApp {
         return card;
     }
 
-    isDiningHallOpen(hall) {
-        // Check if the dining hall has any events on the selected date that indicate it's open
-        if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
-            return false;
-        }
-        
-        // Look for selected date's schedule
-        const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
-        
-        if (!selectedDateSchedule) {
-            return false;
-        }
-        
-        // If status is "EVENTS", it's likely open
-        return selectedDateSchedule.status === 'EVENTS' && selectedDateSchedule.events && selectedDateSchedule.events.length > 0;
-    }
-
+    // STANDARDIZED method to check if dining hall is open
+    // This is the ONLY method that should be used throughout the app
     isDiningHallOpenAtTime(hall, checkTime = null) {
         // Check if the dining hall is open at the specified time
         if (!hall || !hall.operatingHours || !Array.isArray(hall.operatingHours)) {
@@ -1868,46 +1857,33 @@ class CornellDiningApp {
         
         if (checkTime) {
             // Use provided time (Date object) - ensure we're using EST timezone
-            const checkDate = new Date(checkTime);
-            // Ensure we're checking against the same date as selectedDate
-            const selectedDateObj = new Date(this.selectedDate + 'T12:00:00'); // Use noon to avoid timezone issues
-            
-            // If the checkTime is for a different date, adjust it to match selectedDate
-            if (checkDate.getFullYear() !== selectedDateObj.getFullYear() || 
-                checkDate.getMonth() !== selectedDateObj.getMonth() || 
-                checkDate.getDate() !== selectedDateObj.getDate()) {
-                
-                // Create a new date with the selectedDate but using checkTime's hours/minutes in EST
-                const estTimeString = checkDate.toLocaleString("en-US", {
-                    timeZone: "America/New_York",
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                timeToCheck = estTimeString;
-                console.log('[Frontend] [TIME_CHECK] Adjusted time for date mismatch (EST):', timeToCheck);
-            } else {
-                // Use EST time
-                const estTimeString = checkDate.toLocaleString("en-US", {
-                    timeZone: "America/New_York",
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                timeToCheck = estTimeString;
-                console.log('[Frontend] [TIME_CHECK] Using EST time:', timeToCheck);
-            }
-        } else if (timeToCheck === 'now') {
-            // For 'now', we should use the current EST time
-            const now = new Date();
-            const estTimeString = now.toLocaleString("en-US", {
+            const estTimeString = checkTime.toLocaleString("en-US", {
                 timeZone: "America/New_York",
                 hour12: false,
                 hour: '2-digit',
                 minute: '2-digit'
             });
             timeToCheck = estTimeString;
-            console.log('[Frontend] [TIME_CHECK] Using current EST time for "now":', timeToCheck);
+        } else if (timeToCheck === 'now') {
+            // For 'now', we should use the current EST time or stored server time
+            if (this.serverTime) {
+                const estTimeString = this.serverTime.toLocaleString("en-US", {
+                    timeZone: "America/New_York",
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                timeToCheck = estTimeString;
+            } else {
+                const now = new Date();
+                const estTimeString = now.toLocaleString("en-US", {
+                    timeZone: "America/New_York",
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                timeToCheck = estTimeString;
+            }
         }
         
         const selectedMinutes = this.timeToMinutes(timeToCheck);
@@ -1939,6 +1915,12 @@ class CornellDiningApp {
         });
         
         return isOpen;
+    }
+
+    // DEPRECATED - DO NOT USE - kept for backward compatibility only
+    // Use isDiningHallOpenAtTime instead
+    isDiningHallOpen(hall) {
+        return this.isDiningHallOpenAtTime(hall);
     }
 
     timeToMinutes(timeString) {
