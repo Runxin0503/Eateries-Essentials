@@ -1114,8 +1114,8 @@ class CornellDiningApp {
             if (!hallA || !hallB) return 0;
             
             // Check if halls are open using the provided time
-            const isOpenA = this.isDiningHallOpenAtTime(hallA.operatingHours || hallA.events, currentTime);
-            const isOpenB = this.isDiningHallOpenAtTime(hallB.operatingHours || hallB.events, currentTime);
+            const isOpenA = this.isDiningHallOpenAtTime(hallA, currentTime);
+            const isOpenB = this.isDiningHallOpenAtTime(hallB, currentTime);
             
             // Weight constants for priority calculation
             const OPEN_WEIGHT = 2.0;        // Open halls get 2x weight
@@ -1134,7 +1134,7 @@ class CornellDiningApp {
         
         console.log(`[Frontend] [PRIORITY] Sorted recommendations:`, this.recommendations.map(r => {
             const hall = this.diningHalls.find(h => String(h.id) === String(r.diningHallId));
-            const isOpen = hall ? this.isDiningHallOpenAtTime(hall.operatingHours || hall.events, currentTime) : false;
+            const isOpen = hall ? this.isDiningHallOpenAtTime(hall, currentTime) : false;
             return {
                 name: hall?.name || `Hall ${r.diningHallId}`,
                 confidence: r.confidence,
@@ -1666,7 +1666,7 @@ class CornellDiningApp {
             
             // Check if dining hall is open using stored server time
             const timeToUse = this.serverTime || new Date();
-            const isOpen = hall ? this.isDiningHallOpenAtTime(hall.operatingHours || hall.events, timeToUse) : false;
+            const isOpen = hall ? this.isDiningHallOpenAtTime(hall, timeToUse) : false;
             const statusClass = isOpen ? 'open' : 'closed';
             const statusText = isOpen ? 'Open' : 'Closed';
             const statusIcon = isOpen ? '🟢' : '🔴';
@@ -1815,9 +1815,9 @@ class CornellDiningApp {
         return selectedDateSchedule.status === 'EVENTS' && selectedDateSchedule.events && selectedDateSchedule.events.length > 0;
     }
 
-    isDiningHallOpenAtTime(hall) {
+    isDiningHallOpenAtTime(hall, checkTime = null) {
         // Check if the dining hall is open at the specified time
-        if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+        if (!hall || !hall.operatingHours || !Array.isArray(hall.operatingHours)) {
             return false;
         }
         
@@ -1828,12 +1828,17 @@ class CornellDiningApp {
             return false;
         }
         
-        // Convert selected time to minutes for easier comparison
+        // Convert time to check to minutes for easier comparison
         let timeToCheck = this.selectedTime;
-        if (timeToCheck === 'now') {
+        
+        if (checkTime) {
+            // Use provided time (Date object)
+            timeToCheck = `${checkTime.getHours().toString().padStart(2, '0')}:${checkTime.getMinutes().toString().padStart(2, '0')}`;
+        } else if (timeToCheck === 'now') {
             const now = new Date();
             timeToCheck = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
         }
+        
         const selectedMinutes = this.timeToMinutes(timeToCheck);
         
         // Check if any event contains the specified time
