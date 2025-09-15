@@ -1150,16 +1150,17 @@ class CornellDiningApp {
         console.log('[Frontend] [PRIORITY] ===== SORTING RECOMMENDATIONS BY PRIORITY =====');
         console.log('[Frontend] [PRIORITY] Input recommendations count:', this.recommendations?.length || 0);
         console.log('[Frontend] [PRIORITY] Server time provided:', !!serverTime);
+        console.log('[Frontend] [PRIORITY] Selected time setting:', this.selectedTime);
         
         if (!this.recommendations || this.recommendations.length === 0) {
             console.log('[Frontend] [PRIORITY] No recommendations to sort');
             return;
         }
         
-        // Use server time if provided, otherwise fall back to local time
-        const currentTime = serverTime || new Date();
-        console.log(`[Frontend] [PRIORITY] Using time for open/closed calculation:`, currentTime.toISOString());
-        console.log(`[Frontend] [PRIORITY] Time source:`, serverTime ? 'provided server time' : 'local fallback');
+        // For open/closed status checking, we should NOT use server time directly
+        // Instead, respect the user's selected time setting
+        console.log(`[Frontend] [PRIORITY] Will use user's selected time (${this.selectedTime}) for open/closed calculation`);
+        console.log(`[Frontend] [PRIORITY] Selected date: ${this.selectedDate}`);
         
         this.recommendations.sort((a, b) => {
             console.log(`[Frontend] [PRIORITY] ===== COMPARING RECOMMENDATIONS =====`);
@@ -1186,13 +1187,13 @@ class CornellDiningApp {
                 return b.confidence - a.confidence;
             }
             
-            // Check if halls are open using the provided time
+            // Check if halls are open using the user's selected time setting
             console.log(`[Frontend] [PRIORITY] Checking if ${hallA.name} is open...`);
-            const isOpenA = this.isDiningHallOpenAtTime(hallA, currentTime);
+            const isOpenA = this.isDiningHallOpenAtTime(hallA);  // Don't pass server time - let it use selectedTime
             console.log(`[Frontend] [PRIORITY] ${hallA.name} is open: ${isOpenA}`);
             
             console.log(`[Frontend] [PRIORITY] Checking if ${hallB.name} is open...`);
-            const isOpenB = this.isDiningHallOpenAtTime(hallB, currentTime);
+            const isOpenB = this.isDiningHallOpenAtTime(hallB);  // Don't pass server time - let it use selectedTime
             console.log(`[Frontend] [PRIORITY] ${hallB.name} is open: ${isOpenB}`);
             
             // Weight constants for priority calculation
@@ -1214,7 +1215,7 @@ class CornellDiningApp {
         
         console.log(`[Frontend] [PRIORITY] Final sorted recommendations:`, this.recommendations.map((r, idx) => {
             const hall = this.diningHalls.find(h => String(h.id) === String(r.diningHallId));
-            const isOpen = hall ? this.isDiningHallOpenAtTime(hall, currentTime) : false;
+            const isOpen = hall ? this.isDiningHallOpenAtTime(hall) : false;  // Don't pass server time
             return {
                 rank: idx + 1,
                 name: hall?.name || `Hall ${r.diningHallId}`,
@@ -1651,13 +1652,39 @@ class CornellDiningApp {
         
         // Add click handlers for recommendation cards
         spacerRow.addEventListener('click', (e) => {
+            console.log('[Frontend] [RECOMMENDATION_CLICK] ===== RECOMMENDATION CARD CLICKED =====');
+            console.log('[Frontend] [RECOMMENDATION_CLICK] Click event target:', e.target);
+            console.log('[Frontend] [RECOMMENDATION_CLICK] Target tag:', e.target.tagName);
+            console.log('[Frontend] [RECOMMENDATION_CLICK] Target classes:', e.target.className);
+            console.log('[Frontend] [RECOMMENDATION_CLICK] Target text content:', e.target.textContent);
+            
             const recommendationCard = e.target.closest('.recommendation-card');
-            if (recommendationCard && !recommendationCard.classList.contains('empty')) {
-                const hallId = recommendationCard.dataset.hallId;
-                if (hallId) {
-                    this.scrollToHall(hallId);
+            console.log('[Frontend] [RECOMMENDATION_CLICK] Found recommendation card:', !!recommendationCard);
+            
+            if (recommendationCard) {
+                console.log('[Frontend] [RECOMMENDATION_CLICK] Recommendation card details:');
+                console.log('[Frontend] [RECOMMENDATION_CLICK] - Card classes:', recommendationCard.className);
+                console.log('[Frontend] [RECOMMENDATION_CLICK] - Card dataset:', recommendationCard.dataset);
+                console.log('[Frontend] [RECOMMENDATION_CLICK] - Is empty card:', recommendationCard.classList.contains('empty'));
+                
+                if (!recommendationCard.classList.contains('empty')) {
+                    const hallId = recommendationCard.dataset.hallId;
+                    console.log('[Frontend] [RECOMMENDATION_CLICK] Hall ID from dataset:', hallId);
+                    console.log('[Frontend] [RECOMMENDATION_CLICK] Hall ID type:', typeof hallId);
+                    
+                    if (hallId) {
+                        console.log('[Frontend] [RECOMMENDATION_CLICK] Attempting to scroll to hall ID:', hallId);
+                        this.scrollToHall(hallId);
+                    } else {
+                        console.error('[Frontend] [RECOMMENDATION_CLICK] No hall ID found in recommendation card dataset');
+                    }
+                } else {
+                    console.log('[Frontend] [RECOMMENDATION_CLICK] Clicked on empty recommendation card, ignoring');
                 }
+            } else {
+                console.log('[Frontend] [RECOMMENDATION_CLICK] Click was not on a recommendation card');
             }
+            console.log('[Frontend] [RECOMMENDATION_CLICK] ===== END RECOMMENDATION CLICK =====');
         });
         
         list.appendChild(spacerRow);
@@ -1772,17 +1799,15 @@ class CornellDiningApp {
             
             const hallName = hall ? hall.name : `Dining Hall ${rec.diningHallId}`;
             
-            // Check if dining hall is open using stored server time
-            const timeToUse = this.serverTime || new Date();
-            console.log(`[Frontend] [REC_STATUS] Time to use for checking:`, timeToUse);
-            console.log(`[Frontend] [REC_STATUS] Time source:`, this.serverTime ? 'stored server time' : 'local fallback');
-            console.log(`[Frontend] [REC_STATUS] EST time string:`, timeToUse.toLocaleString("en-US", {timeZone: "America/New_York"}));
+            // Check if dining hall is open using user's selected time setting
+            console.log(`[Frontend] [REC_STATUS] Will use user's selected time setting for open/closed check`);
             console.log(`[Frontend] [REC_STATUS] Selected time setting:`, this.selectedTime);
+            console.log(`[Frontend] [REC_STATUS] Selected date:`, this.selectedDate);
             
             let isOpen = false;
             if (hall) {
                 console.log(`[Frontend] [REC_STATUS] Calling isDiningHallOpenAtTime for ${hall.name}...`);
-                isOpen = this.isDiningHallOpenAtTime(hall, timeToUse);
+                isOpen = this.isDiningHallOpenAtTime(hall);  // Don't pass server time - use selectedTime
                 console.log(`[Frontend] [REC_STATUS] isDiningHallOpenAtTime result for ${hall.name}:`, isOpen);
             } else {
                 console.log(`[Frontend] [REC_STATUS] No hall found, defaulting to closed`);
@@ -1798,7 +1823,8 @@ class CornellDiningApp {
                 statusText,
                 statusIcon,
                 hallFound: !!hall,
-                timeUsed: timeToUse.toISOString()
+                selectedTime: this.selectedTime,
+                selectedDate: this.selectedDate
             });
             console.log(`[Frontend] [REC_STATUS] ===== END RECOMMENDATION ${recIndex + 1} =====`);
             
@@ -1838,20 +1864,84 @@ class CornellDiningApp {
     }
 
     scrollToHall(hallId) {
-        const hallCard = document.querySelector(`[data-hall-id="${hallId}"]`);
-        if (hallCard && !hallCard.classList.contains('recommendation-card')) {
+        console.log('[Frontend] [SCROLL_TO_HALL] ===== ATTEMPTING TO SCROLL TO HALL =====');
+        console.log('[Frontend] [SCROLL_TO_HALL] Target hall ID:', hallId);
+        console.log('[Frontend] [SCROLL_TO_HALL] Target hall ID type:', typeof hallId);
+        
+        // Find the target dining hall card
+        let hallCard = document.querySelector(`[data-hall-id="${hallId}"]`);
+        console.log('[Frontend] [SCROLL_TO_HALL] Dining hall card found:', !!hallCard);
+        
+        if (hallCard) {
+            console.log('[Frontend] [SCROLL_TO_HALL] Hall card details:');
+            console.log('[Frontend] [SCROLL_TO_HALL] - Card classes:', hallCard.className);
+            console.log('[Frontend] [SCROLL_TO_HALL] - Card dataset hall ID:', hallCard.dataset.hallId);
+            console.log('[Frontend] [SCROLL_TO_HALL] - Is recommendation card:', hallCard.classList.contains('recommendation-card'));
+            console.log('[Frontend] [SCROLL_TO_HALL] - Card position in viewport:', hallCard.getBoundingClientRect());
+            
+            // Check if this is a recommendation card (we want to scroll to the actual dining hall, not the recommendation)
+            if (hallCard.classList.contains('recommendation-card')) {
+                console.log('[Frontend] [SCROLL_TO_HALL] Found recommendation card, looking for actual dining hall card');
+                
+                // Find all cards with the same hall ID
+                const allCards = document.querySelectorAll(`[data-hall-id="${hallId}"]`);
+                console.log('[Frontend] [SCROLL_TO_HALL] All cards with hall ID:', allCards.length);
+                
+                let actualHallCard = null;
+                allCards.forEach((card, index) => {
+                    const isRecommendation = card.classList.contains('recommendation-card');
+                    console.log(`[Frontend] [SCROLL_TO_HALL] Card ${index + 1}: is recommendation = ${isRecommendation}`);
+                    if (!isRecommendation) {
+                        actualHallCard = card;
+                    }
+                });
+                
+                if (actualHallCard) {
+                    console.log('[Frontend] [SCROLL_TO_HALL] Found actual dining hall card, using it for scroll');
+                    hallCard = actualHallCard;
+                } else {
+                    console.error('[Frontend] [SCROLL_TO_HALL] Could not find actual dining hall card, using recommendation card');
+                }
+            } else {
+                console.log('[Frontend] [SCROLL_TO_HALL] Found actual dining hall card directly');
+            }
+            
+            // Perform the scroll
+            console.log('[Frontend] [SCROLL_TO_HALL] Scrolling to hall card...');
+            console.log('[Frontend] [SCROLL_TO_HALL] Scroll target position:', hallCard.getBoundingClientRect());
+            
             hallCard.scrollIntoView({ 
                 behavior: 'smooth', 
                 block: 'center' 
             });
+            
             // Add a brief highlight effect
+            console.log('[Frontend] [SCROLL_TO_HALL] Adding highlight effect...');
+            const originalBorderColor = hallCard.style.borderColor || 'transparent';
+            const originalBorderWidth = hallCard.style.borderWidth || '2px';
+            
             hallCard.style.borderColor = '#667eea';
             hallCard.style.borderWidth = '3px';
+            
             setTimeout(() => {
-                hallCard.style.borderColor = 'transparent';
-                hallCard.style.borderWidth = '2px';
+                console.log('[Frontend] [SCROLL_TO_HALL] Removing highlight effect...');
+                hallCard.style.borderColor = originalBorderColor;
+                hallCard.style.borderWidth = originalBorderWidth;
             }, 2000);
+            
+            console.log('[Frontend] [SCROLL_TO_HALL] Scroll and highlight complete');
+        } else {
+            console.error('[Frontend] [SCROLL_TO_HALL] Could not find dining hall card for ID:', hallId);
+            
+            // Debug: List all available hall IDs
+            const allHallCards = document.querySelectorAll('[data-hall-id]');
+            console.log('[Frontend] [SCROLL_TO_HALL] Available hall IDs in DOM:');
+            allHallCards.forEach((card, index) => {
+                console.log(`[Frontend] [SCROLL_TO_HALL] ${index + 1}. ID: "${card.dataset.hallId}" (type: ${typeof card.dataset.hallId}), classes: ${card.className}`);
+            });
         }
+        
+        console.log('[Frontend] [SCROLL_TO_HALL] ===== END SCROLL TO HALL =====');
     }
 
     hasMenuContent(hall) {
