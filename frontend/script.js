@@ -8,7 +8,9 @@ class CornellDiningApp {
         this.recommendations = [];
         this.serverTime = null; // Store server time for synchronization
         this.deviceId = this.getOrCreateDeviceId();
-        this.selectedDate = new Date().toISOString().split('T')[0]; // Default to today
+        // Use EST timezone for selected date
+        const estDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        this.selectedDate = estDate; // Default to today in EST
         this.availableDates = []; // Will be populated from API data
         this.selectedTime = 'now'; // Default to current time
         this.pendingHeartRequests = new Set(); // Track ongoing heart requests to prevent race conditions
@@ -787,8 +789,12 @@ class CornellDiningApp {
     updateDayOfWeek() {
         const dayOfWeekElement = document.getElementById('dayOfWeek');
         if (this.selectedDate) {
-            const date = new Date(this.selectedDate + 'T00:00:00');
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+            // Use EST timezone for day calculation
+            const date = new Date(this.selectedDate + 'T12:00:00'); // Use noon to avoid timezone issues
+            const dayName = date.toLocaleDateString('en-US', { 
+                weekday: 'long',
+                timeZone: 'America/New_York'
+            });
             dayOfWeekElement.textContent = dayName;
         }
     }
@@ -1022,8 +1028,15 @@ class CornellDiningApp {
 
     getCurrentViewingTime() {
         if (this.selectedTime === 'now') {
+            // Use EST timezone for current time
             const now = new Date();
-            return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            const estTimeString = now.toLocaleString("en-US", {
+                timeZone: "America/New_York",
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            return estTimeString;
         }
         return this.selectedTime;
     }
@@ -1031,7 +1044,7 @@ class CornellDiningApp {
     // This function is no longer needed with the new daily heart system, but keeping for compatibility
     isHeartVisibleAtTime(heart, viewingTime, viewingDay) {
         // With the new system, hearts are only visible on the day they were created
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
         return heart.dateCreated === today;
     }
 
@@ -1056,7 +1069,7 @@ class CornellDiningApp {
                 const timeData = await timeResponse.json();
                 serverTime = new Date(timeData.currentTime);
                 this.serverTime = serverTime; // Store for UI rendering
-                console.log('[Frontend] [RECOMMENDATIONS] Server time:', serverTime.toISOString());
+                console.log('[Frontend] [RECOMMENDATIONS] Server time (EST):', timeData.estTime);
                 console.log('[Frontend] [RECOMMENDATIONS] Server timezone:', timeData.timezone);
                 console.log('[Frontend] [RECOMMENDATIONS] Server date (YYYY-MM-DD):', serverTime.toISOString().split('T')[0]);
                 console.log('[Frontend] [RECOMMENDATIONS] Selected date (YYYY-MM-DD):', this.selectedDate);
@@ -1070,30 +1083,32 @@ class CornellDiningApp {
                     console.log('[Frontend] [RECOMMENDATIONS] This may cause open/closed status discrepancies');
                 }
             } else {
-                console.log('[Frontend] [RECOMMENDATIONS] Failed to get server time, using local time');
-                serverTime = new Date();
+                console.log('[Frontend] [RECOMMENDATIONS] Failed to get server time, using local EST time');
+                // Create EST time as fallback
+                const now = new Date();
+                serverTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
                 this.serverTime = serverTime;
             }
             
             let time, day;
             
             if (this.selectedTime === 'now') {
-                // Use server time for current time and day
+                // Use server EST time for current time and day
                 time = `${serverTime.getHours().toString().padStart(2, '0')}:${serverTime.getMinutes().toString().padStart(2, '0')}`;
                 day = serverTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
-                console.log('[Frontend] [RECOMMENDATIONS] Using server time for "now":', time, 'day:', day);
+                console.log('[Frontend] [RECOMMENDATIONS] Using server EST time for "now":', time, 'day:', day);
                 console.log('[Frontend] [RECOMMENDATIONS] Server time details:', {
                     fullDate: serverTime.toISOString(),
-                    localTime: serverTime.toLocaleString(),
+                    estTime: serverTime.toLocaleString("en-US", {timeZone: "America/New_York"}),
                     utcHours: serverTime.getUTCHours(),
                     localHours: serverTime.getHours(),
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                    day: serverTime.getDay()
                 });
             } else {
-                // Use selected time but server's current day
+                // Use selected time but server's current day (in EST)
                 time = this.selectedTime;
                 day = serverTime.getDay();
-                console.log('[Frontend] [RECOMMENDATIONS] Using selected time:', time, 'with server day:', day);
+                console.log('[Frontend] [RECOMMENDATIONS] Using selected time:', time, 'with server EST day:', day);
             }
             
             console.log('[Frontend] [RECOMMENDATIONS] Request parameters (using server time):', { userId: this.user.userId, time, day });
@@ -1852,28 +1867,47 @@ class CornellDiningApp {
         let timeToCheck = this.selectedTime;
         
         if (checkTime) {
-            // Use provided time (Date object) - need to ensure we're using the same date as selectedDate
+            // Use provided time (Date object) - ensure we're using EST timezone
             const checkDate = new Date(checkTime);
-            // Ensure we're checking against the same date as this.selectedDate
-            const selectedDateObj = new Date(this.selectedDate + 'T00:00:00');
+            // Ensure we're checking against the same date as selectedDate
+            const selectedDateObj = new Date(this.selectedDate + 'T12:00:00'); // Use noon to avoid timezone issues
             
             // If the checkTime is for a different date, adjust it to match selectedDate
             if (checkDate.getFullYear() !== selectedDateObj.getFullYear() || 
                 checkDate.getMonth() !== selectedDateObj.getMonth() || 
                 checkDate.getDate() !== selectedDateObj.getDate()) {
                 
-                // Create a new date with the selectedDate but using checkTime's hours/minutes
-                const adjustedTime = new Date(this.selectedDate + 'T' + 
-                    checkDate.getHours().toString().padStart(2, '0') + ':' + 
-                    checkDate.getMinutes().toString().padStart(2, '0') + ':00');
-                timeToCheck = `${adjustedTime.getHours().toString().padStart(2, '0')}:${adjustedTime.getMinutes().toString().padStart(2, '0')}`;
+                // Create a new date with the selectedDate but using checkTime's hours/minutes in EST
+                const estTimeString = checkDate.toLocaleString("en-US", {
+                    timeZone: "America/New_York",
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                timeToCheck = estTimeString;
+                console.log('[Frontend] [TIME_CHECK] Adjusted time for date mismatch (EST):', timeToCheck);
             } else {
-                timeToCheck = `${checkDate.getHours().toString().padStart(2, '0')}:${checkDate.getMinutes().toString().padStart(2, '0')}`;
+                // Use EST time
+                const estTimeString = checkDate.toLocaleString("en-US", {
+                    timeZone: "America/New_York",
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                timeToCheck = estTimeString;
+                console.log('[Frontend] [TIME_CHECK] Using EST time:', timeToCheck);
             }
         } else if (timeToCheck === 'now') {
-            // For 'now', we should use the current time in the selected date context
+            // For 'now', we should use the current EST time
             const now = new Date();
-            timeToCheck = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            const estTimeString = now.toLocaleString("en-US", {
+                timeZone: "America/New_York",
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            timeToCheck = estTimeString;
+            console.log('[Frontend] [TIME_CHECK] Using current EST time for "now":', timeToCheck);
         }
         
         const selectedMinutes = this.timeToMinutes(timeToCheck);

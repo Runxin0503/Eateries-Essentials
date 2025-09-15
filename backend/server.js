@@ -1,3 +1,6 @@
+// Set timezone to EST
+process.env.TZ = 'America/New_York';
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -24,19 +27,24 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Get current server time
+// Get current server time in EST
 app.get('/api/time', (req, res) => {
     const currentTime = new Date();
+    const estTime = new Date(currentTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
     res.json({ 
-        currentTime: currentTime.toISOString(),
-        timestamp: currentTime.getTime(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        currentTime: estTime.toISOString(),
+        timestamp: estTime.getTime(),
+        timezone: 'America/New_York',
+        estTime: estTime.toLocaleString("en-US", {timeZone: "America/New_York"}),
+        utcTime: currentTime.toISOString()
     });
 });
 
-// Get today's date in YYYY-MM-DD format
+// Get today's date in YYYY-MM-DD format using EST timezone
 function getTodayDate() {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const estDate = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    return estDate.toISOString().split('T')[0];
 }
 
 // Get dining data from Cornell API
