@@ -25,7 +25,7 @@
                 <!-- Hearts Management Button -->
                 <button type="button" id="heartsManagerBtn" style="margin-left: 10px; padding: 8px 16px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px;">
                     <span>❤️</span>
-                    <span>Manage Hearts</span>
+                    <span>Manage Likes</span>
                 </button>
             </div>
             
@@ -113,14 +113,14 @@
         <div id="heartsModal" class="modal hidden">
             <div class="modal-content hearts-modal-content">
                 <div class="hearts-modal-header">
-                    <h3>❤️ Manage Your Hearts</h3>
+                    <h3>❤️ Manage Your Likes</h3>
                     <button id="heartsModalCloseBtn" class="modal-close-btn">✕</button>
                 </div>
                 <div class="hearts-modal-body">
                     <div class="hearts-stats">
                         <div class="hearts-stat">
                             <span class="stat-number" id="dailyHeartsCount">0</span>
-                            <span class="stat-label">Daily Hearts</span>
+                            <span class="stat-label">Daily Likes</span>
                         </div>
                         <div class="hearts-stat">
                             <span class="stat-number" id="knnHeartsCount">0</span>
@@ -128,20 +128,20 @@
                         </div>
                         <div class="hearts-stat">
                             <span class="stat-number" id="totalHeartsCount">0</span>
-                            <span class="stat-label">Total Hearts</span>
+                            <span class="stat-label">Total Likes</span>
                         </div>
                     </div>
                     
                     <div class="hearts-tabs">
-                        <button class="hearts-tab active" data-tab="daily">Daily Hearts</button>
+                        <button class="hearts-tab active" data-tab="daily">Daily Likes</button>
                         <button class="hearts-tab" data-tab="knn">Saved Favorites</button>
                     </div>
                     
                     <div class="hearts-content">
                         <div id="dailyHeartsTab" class="hearts-tab-content active">
                             <div class="hearts-section-header">
-                                <h4>🌅 Today's Hearts</h4>
-                                <p>Hearts from today that will transfer to your saved favorites at midnight</p>
+                                <h4>🌅 Today's Likes</h4>
+                                <p>Favorites from today that will transfer to your saved favorites at midnight</p>
                             </div>
                             <div id="dailyHeartsList" class="hearts-list">
                                 <!-- Daily hearts will be populated here -->
@@ -151,7 +151,7 @@
                         <div id="knnHeartsTab" class="hearts-tab-content">
                             <div class="hearts-section-header">
                                 <h4>💾 Your Saved Favorites</h4>
-                                <p>Past hearts used for personalized recommendations</p>
+                                <p>Past favorites used for personalized recommendations</p>
                             </div>
                             <div id="knnHeartsList" class="hearts-list">
                                 <!-- Saved favorites will be populated here -->
