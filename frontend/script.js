@@ -1165,8 +1165,18 @@ class CornellDiningApp {
             console.log(`[Frontend] [PRIORITY] ===== COMPARING RECOMMENDATIONS =====`);
             
             // Find the dining halls for comparison
-            const hallA = this.diningHalls.find(h => String(h.id) === String(a.diningHallId));
-            const hallB = this.diningHalls.find(h => String(h.id) === String(b.diningHallId));
+            let hallA = this.diningHalls.find(h => String(h.id) === String(a.diningHallId));
+            let hallB = this.diningHalls.find(h => String(h.id) === String(b.diningHallId));
+            
+            // Add original operating hours (same as main cards)
+            if (hallA) {
+                const operatingHoursA = this.getOriginalOperatingHours(hallA.id);
+                hallA = { ...hallA, operatingHours: operatingHoursA };
+            }
+            if (hallB) {
+                const operatingHoursB = this.getOriginalOperatingHours(hallB.id);
+                hallB = { ...hallB, operatingHours: operatingHoursB };
+            }
             
             console.log(`[Frontend] [PRIORITY] Hall A: ${hallA?.name || 'not found'} (ID: ${a.diningHallId})`);
             console.log(`[Frontend] [PRIORITY] Hall B: ${hallB?.name || 'not found'} (ID: ${b.diningHallId})`);
@@ -1732,7 +1742,7 @@ class CornellDiningApp {
             console.log(`[Frontend] [REC_STATUS] Looking for dining hall ID: ${rec.diningHallId} (type: ${typeof rec.diningHallId})`);
             console.log(`[Frontend] [REC_STATUS] Available hall IDs:`, this.diningHalls.map(h => `${h.id}(${typeof h.id})`));
             
-            const hall = this.diningHalls.find(h => {
+            let hall = this.diningHalls.find(h => {
                 const match = String(h.id) === String(rec.diningHallId);
                 console.log(`[Frontend] [REC_STATUS] Comparing ${h.id} (${typeof h.id}) === ${rec.diningHallId} (${typeof rec.diningHallId}) -> ${match}`);
                 return match;
@@ -1742,6 +1752,10 @@ class CornellDiningApp {
                 console.log(`[Frontend] [REC_STATUS] ERROR: Could not find hall for ID ${rec.diningHallId}`);
                 console.log(`[Frontend] [REC_STATUS] Available halls:`, this.diningHalls.map(h => ({ id: h.id, name: h.name })));
             } else {
+                // Get original operating hours for this dining hall (same as main cards)
+                const operatingHours = this.getOriginalOperatingHours(hall.id);
+                hall = { ...hall, operatingHours };
+                
                 console.log(`[Frontend] [REC_STATUS] Found hall:`, { id: hall.id, name: hall.name });
                 console.log(`[Frontend] [REC_STATUS] Hall operating hours available:`, !!hall.operatingHours);
                 if (hall.operatingHours) {
