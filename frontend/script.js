@@ -1058,6 +1058,17 @@ class CornellDiningApp {
                 this.serverTime = serverTime; // Store for UI rendering
                 console.log('[Frontend] [RECOMMENDATIONS] Server time:', serverTime.toISOString());
                 console.log('[Frontend] [RECOMMENDATIONS] Server timezone:', timeData.timezone);
+                console.log('[Frontend] [RECOMMENDATIONS] Server date (YYYY-MM-DD):', serverTime.toISOString().split('T')[0]);
+                console.log('[Frontend] [RECOMMENDATIONS] Selected date (YYYY-MM-DD):', this.selectedDate);
+                
+                // Check if there's a date mismatch that could cause issues
+                const serverDate = serverTime.toISOString().split('T')[0];
+                if (this.selectedDate !== serverDate && this.selectedTime === 'now') {
+                    console.log('[Frontend] [RECOMMENDATIONS] WARNING: Date mismatch detected!');
+                    console.log('[Frontend] [RECOMMENDATIONS] Selected date:', this.selectedDate);
+                    console.log('[Frontend] [RECOMMENDATIONS] Server date:', serverDate);
+                    console.log('[Frontend] [RECOMMENDATIONS] This may cause open/closed status discrepancies');
+                }
             } else {
                 console.log('[Frontend] [RECOMMENDATIONS] Failed to get server time, using local time');
                 serverTime = new Date();
@@ -1070,10 +1081,19 @@ class CornellDiningApp {
                 // Use server time for current time and day
                 time = `${serverTime.getHours().toString().padStart(2, '0')}:${serverTime.getMinutes().toString().padStart(2, '0')}`;
                 day = serverTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                console.log('[Frontend] [RECOMMENDATIONS] Using server time for "now":', time, 'day:', day);
+                console.log('[Frontend] [RECOMMENDATIONS] Server time details:', {
+                    fullDate: serverTime.toISOString(),
+                    localTime: serverTime.toLocaleString(),
+                    utcHours: serverTime.getUTCHours(),
+                    localHours: serverTime.getHours(),
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                });
             } else {
                 // Use selected time but server's current day
                 time = this.selectedTime;
                 day = serverTime.getDay();
+                console.log('[Frontend] [RECOMMENDATIONS] Using selected time:', time, 'with server day:', day);
             }
             
             console.log('[Frontend] [RECOMMENDATIONS] Request parameters (using server time):', { userId: this.user.userId, time, day });
@@ -1832,9 +1852,26 @@ class CornellDiningApp {
         let timeToCheck = this.selectedTime;
         
         if (checkTime) {
-            // Use provided time (Date object)
-            timeToCheck = `${checkTime.getHours().toString().padStart(2, '0')}:${checkTime.getMinutes().toString().padStart(2, '0')}`;
+            // Use provided time (Date object) - need to ensure we're using the same date as selectedDate
+            const checkDate = new Date(checkTime);
+            // Ensure we're checking against the same date as this.selectedDate
+            const selectedDateObj = new Date(this.selectedDate + 'T00:00:00');
+            
+            // If the checkTime is for a different date, adjust it to match selectedDate
+            if (checkDate.getFullYear() !== selectedDateObj.getFullYear() || 
+                checkDate.getMonth() !== selectedDateObj.getMonth() || 
+                checkDate.getDate() !== selectedDateObj.getDate()) {
+                
+                // Create a new date with the selectedDate but using checkTime's hours/minutes
+                const adjustedTime = new Date(this.selectedDate + 'T' + 
+                    checkDate.getHours().toString().padStart(2, '0') + ':' + 
+                    checkDate.getMinutes().toString().padStart(2, '0') + ':00');
+                timeToCheck = `${adjustedTime.getHours().toString().padStart(2, '0')}:${adjustedTime.getMinutes().toString().padStart(2, '0')}`;
+            } else {
+                timeToCheck = `${checkDate.getHours().toString().padStart(2, '0')}:${checkDate.getMinutes().toString().padStart(2, '0')}`;
+            }
         } else if (timeToCheck === 'now') {
+            // For 'now', we should use the current time in the selected date context
             const now = new Date();
             timeToCheck = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
         }
