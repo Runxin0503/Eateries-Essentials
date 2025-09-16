@@ -1,3 +1,12 @@
+// Load secrets from local file in development (not in production)
+if (process.env.NODE_ENV !== 'production') {
+    try {
+        require('dotenv').config({ path: '../secrets' });
+        console.log('[Backend] Loaded secrets from ../secrets');
+    } catch (err) {
+        console.warn('[Backend] Could not load ../secrets:', err.message);
+    }
+}
 // Set timezone to EST
 process.env.TZ = 'America/New_York';
 

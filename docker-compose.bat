@@ -27,9 +27,16 @@ if /i "%1"=="up" (
         exit /b 1
     )
 
-    REM Run the container with persistent data volume
+
+    REM Run the container with persistent data volume and environment variables from .env
     echo Starting container...
-    docker run -d -p 8080:80 -v eateries-data:/app/data --name eateries-app eateries-essentials
+    if exist .env (
+        echo Found .env file. Passing environment variables to container...
+        docker run --env-file .env -d -p 8080:80 -v eateries-data:/app/data --name eateries-app eateries-essentials
+    ) else (
+        echo No .env file found. Running without extra environment variables...
+        docker run -d -p 8080:80 -v eateries-data:/app/data --name eateries-app eateries-essentials
+    )
     if %ERRORLEVEL% neq 0 (
         echo Failed to start container!
         pause
