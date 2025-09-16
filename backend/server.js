@@ -7,14 +7,47 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const OpenAI = require('openai');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = '/app/data';
 
+// Load OpenAI API key from secrets file
+let openaiApiKey = null;
+try {
+    const secretsPath = path.join(__dirname, '..', 'secrets');
+    
+    if (fs.existsSync(secretsPath)) {
+        const secretsContent = fs.readFileSync(secretsPath, 'utf8');
+        
+        const match = secretsContent.match(/OPENAI_API_KEY=(.+)/);
+        
+        if (match) {
+            openaiApiKey = match[1].trim();
+            console.log('[DEBUG] OPENAI_API_KEY successfully loaded!');
+        } else {
+            console.log('[DEBUG] No OPENAI_API_KEY found in secrets file');
+        }
+    } else if (process.env.OPENAI_API_KEY) {
+        openaiApiKey = process.env.OPENAI_API_KEY;
+        console.log('[DEBUG] OPENAI_API_KEY successfully loaded!');
+    } else {
+        console.log('[DEBUG] Secrets file does not exist');
+    }
+} catch (error) {
+    console.log('Warning: Could not load OpenAI API key from secrets file:', error.message);
+}
+
+// Initialize OpenAI client
+console.log(`[DEBUG] Initializing OpenAI client, API key available: ${!!openaiApiKey}`);
+const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+console.log(`[DEBUG] OpenAI client created: ${!!openai}`);
+
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 
 // Ensure data directory exists
 fs.ensureDirSync(DATA_DIR);
@@ -48,9 +81,25 @@ function getTodayDate() {
 }
 
 // Get dining data from Cornell API
-app.get('/api/dining/:date?', async (req, res) => {
+app.get('/api/dining', async (req, res) => {
     try {
-        const date = req.params.date || getTodayDate();
+        const date = getTodayDate();
+        console.log(`[${new Date().toISOString()}] Fetching dining data for date: ${date}`);
+        
+        const response = await axios.get(`${CORNELL_API_BASE}?date=${date}`);
+        console.log(`[${new Date().toISOString()}] Cornell API response status: ${response.status}`);
+        console.log(`[${new Date().toISOString()}] Cornell API response data keys:`, Object.keys(response.data));
+        
+        res.json(response.data);
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error fetching dining data:`, error.message);
+        res.status(500).json({ error: 'Failed to fetch dining data' });
+    }
+});
+
+app.get('/api/dining/:date', async (req, res) => {
+    try {
+        const date = req.params.date;
         console.log(`[${new Date().toISOString()}] Fetching dining data for date: ${date}`);
         
         const response = await axios.get(`${CORNELL_API_BASE}?date=${date}`);
@@ -909,6 +958,113 @@ app.delete('/api/hearts/knn/:userId/:type/:heartId', async (req, res) => {
     } catch (error) {
         console.error(`[${new Date().toISOString()}] [HEARTS] Error removing KNN heart:`, error);
         res.status(500).json({ error: 'Failed to remove KNN heart' });
+    }
+});
+
+// Chatbot endpoint
+app.post('/api/chatbot', async (req, res) => {
+    try {
+        console.log(`[${new Date().toISOString()}] [CHATBOT] === CHATBOT REQUEST START ===`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Request body keys:`, Object.keys(req.body));
+        
+        if (!openai) {
+            console.log(`[${new Date().toISOString()}] [CHATBOT] ERROR: OpenAI client not configured`);
+            return res.status(500).json({ error: 'OpenAI API not configured' });
+        }
+
+        const { message, selectedDate, selectedTime, diningData } = req.body;
+        console.log(`[${new Date().toISOString()}] [CHATBOT] User message: "${message}"`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Selected date: ${selectedDate}`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Selected time: ${selectedTime}`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Dining data provided: ${!!diningData}, count: ${diningData?.length || 0}`);
+
+        if (!message) {
+            console.log(`[${new Date().toISOString()}] [CHATBOT] ERROR: No message provided`);
+            return res.status(400).json({ error: 'Message is required' });
+        }
+
+        // Create context from dining data
+        let contextText = `Today's date: ${selectedDate}\nCurrent time: ${selectedTime}\n\n`;
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Starting context text:`, contextText);
+        
+        if (diningData && diningData.length > 0) {
+            contextText += "Available dining halls for today:\n\n";
+            console.log(`[${new Date().toISOString()}] [CHATBOT] Processing ${diningData.length} dining halls...`);
+            
+            diningData.forEach((hall, index) => {
+                console.log(`[${new Date().toISOString()}] [CHATBOT] Processing hall ${index + 1}/${diningData.length}: ${hall.name}`);
+                console.log(`[${new Date().toISOString()}] [CHATBOT] - Hall ID: ${hall.id}, isOpen: ${hall.isOpen}`);
+                console.log(`[${new Date().toISOString()}] [CHATBOT] - Operating hours exists: ${!!hall.operatingHours}, length: ${hall.operatingHours?.length || 0}`);
+                console.log(`[${new Date().toISOString()}] [CHATBOT] - Campus area: ${hall.campusArea?.descrshort || 'none'}`);
+                
+                contextText += `${hall.name}:\n`;
+                contextText += `- Status: ${hall.isOpen ? 'Open' : 'Closed'}\n`;
+                
+                if (hall.operatingHours && hall.operatingHours.length > 0) {
+                    const todaySchedule = hall.operatingHours.find(schedule => schedule.date === selectedDate);
+                    console.log(`[${new Date().toISOString()}] [CHATBOT] - Today's schedule found: ${!!todaySchedule}`);
+                    if (todaySchedule && todaySchedule.events) {
+                        console.log(`[${new Date().toISOString()}] [CHATBOT] - Today's events count: ${todaySchedule.events.length}`);
+                        contextText += `- Hours: `;
+                        todaySchedule.events.forEach((event, index) => {
+                            if (index > 0) contextText += ', ';
+                            contextText += `${event.start}-${event.end}`;
+                            if (event.descr) contextText += ` (${event.descr})`;
+                        });
+                        contextText += '\n';
+                    }
+                }
+                
+                if (hall.campusArea) {
+                    contextText += `- Location: ${hall.campusArea.descrshort}\n`;
+                }
+                
+                contextText += '\n';
+            });
+        } else {
+            contextText += "No dining data available for the selected date.\n";
+            console.log(`[${new Date().toISOString()}] [CHATBOT] No dining data available`);
+        }
+
+        const instructions = `You are a helpful Cornell University dining assistant. You help students find dining options, check hours, and answer questions about campus dining. Keep your responses short, concise, and to the point, avoid making lists and keep suggestions to 2 at max.
+
+You have access to current dining hall information including their hours, locations, open/closed status and descriptions.
+
+Current dining information:
+${contextText}`;
+
+        console.log(`[${new Date().toISOString()}] [CHATBOT] === FULL CONTEXT MESSAGE ===`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Instructions length: ${instructions.length} characters`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Context text length: ${contextText.length} characters`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Full instructions text:`);
+        console.log(instructions);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] === END CONTEXT MESSAGE ===`);
+
+        console.log(`[${new Date().toISOString()}] [CHATBOT] Making OpenAI API call with model: gpt-5-nano`);
+        const response = await openai.responses.create({
+            model: "gpt-5-nano",
+            instructions: instructions,
+            input: message,
+            max_output_tokens: 500,
+            reasoning: { effort: "low" }
+        });
+
+        const reply = response.output_text;
+        console.log(`[${new Date().toISOString()}] [CHATBOT] OpenAI response length: ${reply?.length || 0} characters`);
+        console.log(`[${new Date().toISOString()}] [CHATBOT] OpenAI response: "${reply}"`);
+        
+        console.log(`[${new Date().toISOString()}] [CHATBOT] === CHATBOT REQUEST SUCCESS ===`);
+        res.json({ 
+            reply: reply,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] [CHATBOT] === CHATBOT REQUEST ERROR ===`);
+        console.error(`[${new Date().toISOString()}] [CHATBOT] Error details:`, error);
+        console.error(`[${new Date().toISOString()}] [CHATBOT] Error message:`, error.message);
+        console.error(`[${new Date().toISOString()}] [CHATBOT] Error stack:`, error.stack);
+        res.status(500).json({ error: 'Failed to generate response' });
     }
 });
 

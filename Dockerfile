@@ -19,6 +19,9 @@ WORKDIR /app
 # Copy backend from previous stage
 COPY --from=backend-build /app/backend ./backend
 
+# Copy secrets file for API keys
+COPY secrets ./secrets
+
 # Copy frontend files
 COPY frontend/ ./frontend/
 

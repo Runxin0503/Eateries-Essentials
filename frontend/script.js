@@ -47,6 +47,7 @@ class CornellDiningApp {
         await this.loadRecommendations();
         this.initializeDateSelector(); // Initialize after data is loaded
         this.renderDiningHalls();
+        this.initializeChatbot(); // Initialize chatbot
         
         // Add manual check for search functionality after everything is loaded
         setTimeout(() => {
@@ -1153,7 +1154,9 @@ class CornellDiningApp {
                     name: eatery.name,
                     description: this.cleanDescription(eatery.about) || 'A dining location at Cornell University',
                     hours: this.formatHours(eatery.operatingHours),
-                    menus: this.processMenus(eatery.operatingHours)
+                    menus: this.processMenus(eatery.operatingHours),
+                    operatingHours: eatery.operatingHours,
+                    campusArea: eatery.campusArea || 'Unknown',
                 };
                 console.log(`[Frontend] Processed dining hall:`, processed.name, 'with', Object.keys(processed.menus).length, 'meal types');
                 return processed;
@@ -2733,6 +2736,137 @@ class CornellDiningApp {
         document.querySelectorAll('.hearts-tab-content').forEach(content => {
             content.classList.toggle('active', content.id === `${tabName}HeartsTab`);
         });
+    }
+
+    // Chatbot functionality
+    initializeChatbot() {
+        const chatbotToggle = document.getElementById('chatbot-toggle');
+        const chatbotWindow = document.getElementById('chatbot-window');
+        const chatbotClose = document.getElementById('chatbot-close');
+        const chatbotInput = document.getElementById('chatbot-input');
+        const chatbotSend = document.getElementById('chatbot-send');
+        const messagesContainer = document.getElementById('chatbot-messages');
+
+        // Toggle chatbot window
+        chatbotToggle.addEventListener('click', () => {
+            chatbotWindow.classList.toggle('active');
+            if (chatbotWindow.classList.contains('active')) {
+                chatbotInput.focus();
+            }
+        });
+
+        // Close chatbot
+        chatbotClose.addEventListener('click', () => {
+            chatbotWindow.classList.remove('active');
+        });
+
+        // Send message on button click
+        chatbotSend.addEventListener('click', () => {
+            this.sendChatMessage();
+        });
+
+        // Send message on Enter key
+        chatbotInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendChatMessage();
+            }
+        });
+    }
+
+    async sendChatMessage() {
+        const input = document.getElementById('chatbot-input');
+        const messagesContainer = document.getElementById('chatbot-messages');
+        const sendButton = document.getElementById('chatbot-send');
+        
+        const message = input.value.trim();
+        if (!message) return;
+
+        // Clear input and disable send button
+        input.value = '';
+        sendButton.disabled = true;
+
+        // Add user message to chat
+        this.addChatMessage(message, 'user');
+
+        // Show typing indicator
+        const typingMessage = this.addChatMessage('Thinking...', 'bot', true);
+
+        try {            
+            // Prepare dining data for context
+            const diningData = this.diningHalls.map(hall => {
+                const isOpen = this.isDiningHallOpenAtTime(hall);
+                console.log(`[Frontend] [CHATBOT] Hall ${hall.name}: isOpen = ${isOpen}`);
+                console.log(`[Frontend] [CHATBOT] Hall ${hall.name}: id = ${hall.id}, operatingHours length = ${hall.operatingHours?.length || 0}`);
+                return {
+                    id: hall.id,
+                    name: hall.name,
+                    isOpen: isOpen,
+                    description: hall.description || '',
+                    operatingHours: hall.operatingHours,
+                    campusArea: hall.campusArea,
+                    hours: hall.hours,
+                    menus: hall.menus,
+                };
+            });
+
+            console.log(`[Frontend] [CHATBOT] Sending ${diningData.length} dining halls to chatbot`);
+            const openHalls = diningData.filter(h => h.isOpen);
+            console.log(`[Frontend] [CHATBOT] ${openHalls.length} halls are open: ${openHalls.map(h => h.name).join(', ')}`);
+
+            const response = await fetch('/api/chatbot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: message,
+                    selectedDate: this.selectedDate,
+                    selectedTime: this.selectedTime,
+                    diningData: diningData
+                })
+            });
+
+            const data = await response.json();
+
+            // Remove typing indicator
+            messagesContainer.removeChild(typingMessage);
+
+            if (response.ok) {
+                this.addChatMessage(data.reply, 'bot');
+            } else {
+                this.addChatMessage('Sorry, I encountered an error. Please try again.', 'bot');
+            }
+        } catch (error) {
+            console.error('Chatbot error:', error);
+            // Remove typing indicator
+            if (typingMessage && typingMessage.parentNode) {
+                messagesContainer.removeChild(typingMessage);
+            }
+            this.addChatMessage('Sorry, I\'m having trouble connecting. Please try again later.', 'bot');
+        } finally {
+            sendButton.disabled = false;
+            input.focus();
+        }
+    }
+
+    addChatMessage(content, sender, isTyping = false) {
+        const messagesContainer = document.getElementById('chatbot-messages');
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${sender}-message${isTyping ? ' typing' : ''}`;
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.textContent = content;
+        
+        messageDiv.appendChild(contentDiv);
+        messagesContainer.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        return messageDiv;
     }
 
 }
