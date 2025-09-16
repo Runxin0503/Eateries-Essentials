@@ -901,15 +901,26 @@ class CornellDiningApp {
 
     getCurrentViewingTime() {
         if (this.selectedTime === 'now') {
-            // Use EST timezone for current time
-            const now = new Date();
-            const estTimeString = now.toLocaleString("en-US", {
-                timeZone: "America/New_York",
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            return estTimeString;
+            // For 'now', use stored server time if available, otherwise current EST time
+            if (this.serverTime) {
+                const estTimeString = this.serverTime.toLocaleString("en-US", {
+                    timeZone: "America/New_York",
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                return estTimeString;
+            } else {
+                // Use EST timezone for current time
+                const now = new Date();
+                const estTimeString = now.toLocaleString("en-US", {
+                    timeZone: "America/New_York",
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                return estTimeString;
+            }
         }
         return this.selectedTime;
     }
@@ -1529,15 +1540,29 @@ class CornellDiningApp {
         });
 
         // Create cards for open dining halls first (with menus first, then without)
+        console.log(`[RENDER_DEBUG] About to create ${openHalls.length} open hall cards`);
         openHalls.forEach((hall, index) => {
-            const card = this.createDiningHallCard(hall, index, false);
-            list.appendChild(card);
+            console.log(`[RENDER_DEBUG] Creating open card for ${hall.name} at index ${index}`);
+            try {
+                const card = this.createDiningHallCard(hall, index, false);
+                list.appendChild(card);
+                console.log(`[RENDER_DEBUG] Successfully created and appended card for ${hall.name}`);
+            } catch (error) {
+                console.error(`[RENDER_DEBUG] Error creating card for ${hall.name}:`, error);
+            }
         });
         
         // Create cards for closed dining halls (greyed out)
+        console.log(`[RENDER_DEBUG] About to create ${closedHalls.length} closed hall cards`);
         closedHalls.forEach((hall, index) => {
-            const card = this.createDiningHallCard(hall, openHalls.length + index, true);
-            list.appendChild(card);
+            console.log(`[RENDER_DEBUG] Creating closed card for ${hall.name} at index ${openHalls.length + index}`);
+            try {
+                const card = this.createDiningHallCard(hall, openHalls.length + index, true);
+                list.appendChild(card);
+                console.log(`[RENDER_DEBUG] Successfully created and appended card for ${hall.name}`);
+            } catch (error) {
+                console.error(`[RENDER_DEBUG] Error creating card for ${hall.name}:`, error);
+            }
         });
 
         // Apply current search filter after rendering
@@ -1593,7 +1618,22 @@ class CornellDiningApp {
             }
             
             const statusClass = isOpen ? 'open' : 'closed';
-            const statusText = isOpen ? 'Open' : 'Closed';
+            let statusText = 'Closed';
+            if (isOpen) {
+                const endTime = this.getDiningHallEndTime(hall);
+                if (endTime) {
+                    statusText = `Open until ${endTime}`;
+                } else {
+                    statusText = 'Open';
+                }
+            } else {
+                const nextOpenTime = this.getDiningHallNextOpenTime(hall);
+                if (nextOpenTime) {
+                    statusText = `Closed until ${nextOpenTime}`;
+                } else {
+                    statusText = 'Closed';
+                }
+            }
             const statusIcon = isOpen ? '🟢' : '🔴';
             
             return `
@@ -1767,6 +1807,7 @@ class CornellDiningApp {
     }
 
     createDiningHallCard(hall, index, isClosed = false) {
+        console.log(`[CARD_CREATION_DEBUG] Creating card for ${hall.name}, index=${index}, isClosed=${isClosed}`);
         const card = document.createElement('div');
         card.className = `dining-hall-card ${isClosed ? 'closed-hall' : ''}`;
         card.dataset.index = index;
@@ -1778,18 +1819,34 @@ class CornellDiningApp {
         
         // Determine if dining hall is open or closed
         // When time filtering is active (selectedTime is set), use time-specific logic
+        console.log(`[CARD_CREATION_DEBUG] About to check isOpen for ${hall.name}`);
         const isOpen = this.isDiningHallOpenAtTime(hall);
+        console.log(`[CARD_CREATION_DEBUG] isOpen result for ${hall.name}: ${isOpen}`);
         const statusClass = isOpen ? 'open' : 'closed';
         
         let statusText = 'Closed';
+        console.log(`[STATUS_DEBUG] ${hall.name}: isOpen=${isOpen}`);
         if (isOpen) {
+            console.log(`[STATUS_DEBUG] ${hall.name}: Hall is open, getting end time...`);
             const endTime = this.getDiningHallEndTime(hall);
+            console.log(`[STATUS_DEBUG] ${hall.name}: endTime=${endTime}`);
             if (endTime) {
                 statusText = `Open until ${endTime}`;
             } else {
                 statusText = 'Open';
             }
+        } else {
+            console.log(`[STATUS_DEBUG] ${hall.name}: Hall is closed, getting next open time...`);
+            const nextOpenTime = this.getDiningHallNextOpenTime(hall);
+            console.log(`[STATUS_DEBUG] ${hall.name}: nextOpenTime=${nextOpenTime}`);
+            if (nextOpenTime) {
+                statusText = `Closed until ${nextOpenTime}`;
+            } else {
+                statusText = 'Closed';
+            }
         }
+        console.log(`[STATUS_DEBUG] ${hall.name}: Final statusText="${statusText}"`);
+        
 
         card.innerHTML = `
             <div class="dining-hall-header">
@@ -2044,19 +2101,26 @@ class CornellDiningApp {
 
     getDiningHallEndTime(hall) {
         // Get the end time of the current event for the dining hall at the selected time
+        console.log(`[END_TIME_DEBUG] Getting end time for ${hall.name}`);
         if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+            console.log(`[END_TIME_DEBUG] ${hall.name}: No operating hours`);
             return null;
         }
         
         // Look for selected date's schedule
         const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
+        console.log(`[END_TIME_DEBUG] ${hall.name}: selectedDate=${this.selectedDate}, schedule found=${!!selectedDateSchedule}`);
         
         if (!selectedDateSchedule || !selectedDateSchedule.events) {
+            console.log(`[END_TIME_DEBUG] ${hall.name}: No schedule or events for selected date`);
             return null;
         }
         
         // Convert selected time to minutes for easier comparison
-        const selectedMinutes = this.timeToMinutes(this.selectedTime);
+        const currentTime = this.getCurrentViewingTime();
+        const selectedMinutes = this.timeToMinutes(currentTime);
+        console.log(`[END_TIME_DEBUG] ${hall.name}: selectedTime=${this.selectedTime}, currentTime=${currentTime}, selectedMinutes=${selectedMinutes}`);
+        
         
         // Find the event that contains the specified time
         const currentEvent = selectedDateSchedule.events.find(event => {
@@ -2079,6 +2143,49 @@ class CornellDiningApp {
         });
         
         return currentEvent ? currentEvent.end : null;
+    }
+
+    getDiningHallNextOpenTime(hall) {
+        // Get the next opening time for a closed dining hall
+        console.log(`[NEXT_OPEN_DEBUG] Getting next open time for ${hall.name}`);
+        if (!hall.operatingHours || !Array.isArray(hall.operatingHours)) {
+            console.log(`[NEXT_OPEN_DEBUG] ${hall.name}: No operating hours`);
+            return null;
+        }
+        
+        // Look for selected date's schedule
+        const selectedDateSchedule = hall.operatingHours.find(schedule => schedule.date === this.selectedDate);
+        console.log(`[NEXT_OPEN_DEBUG] ${hall.name}: selectedDate=${this.selectedDate}, schedule found=${!!selectedDateSchedule}`);
+        
+        if (!selectedDateSchedule || !selectedDateSchedule.events) {
+            console.log(`[NEXT_OPEN_DEBUG] ${hall.name}: No schedule or events for selected date`);
+            return null;
+        }
+        
+        // Convert selected time to minutes for easier comparison
+        let timeToCheck = this.getCurrentViewingTime();
+        console.log(`[NEXT_OPEN_DEBUG] ${hall.name}: timeToCheck=${timeToCheck}`);
+        
+        const selectedMinutes = this.timeToMinutes(timeToCheck);
+        
+        // Find the next event that starts after the current time
+        const futureEvents = selectedDateSchedule.events.filter(event => {
+            if (!event.start || !event.end) return false;
+            
+            const eventStartMinutes = this.parseEventTime(event.start);
+            if (eventStartMinutes === null) return false;
+            
+            return eventStartMinutes > selectedMinutes;
+        });
+        
+        // Sort by start time and get the earliest one
+        futureEvents.sort((a, b) => {
+            const aStart = this.parseEventTime(a.start);
+            const bStart = this.parseEventTime(b.start);
+            return aStart - bStart;
+        });
+        
+        return futureEvents.length > 0 ? futureEvents[0].start : null;
     }
 
     createMenuContent(hall) {
